@@ -96,7 +96,8 @@ int getThreadsUsed(int argc, char **argv)
 
 void computeMandelbrot(int *image, int iterations)
 {
-#pragma omp parallel for schedule(SCHEDULING_TYPE) default(none) shared(image) firstprivate(iterations) 
+	// region provided by *image is shared among threads, the pointer is private
+#pragma omp parallel for schedule(SCHEDULING_TYPE) default(none) firstprivate(image, iterations) 
 	for (int pos = 0; pos < HEIGHT * WIDTH; pos++)
 	{
 		image[pos] = 0;
@@ -165,7 +166,7 @@ int main(int argc, char **argv)
 	if (log.is_open())
 	{
 		log << "Date:\t" << __DATE__ << " " << __TIME__
-			<< "\tProgram:\t" << fileName << "\tIterations:\t"
+			<< "\tProgram:\t" << fileName << "\t\tIterations:\t"
 			<< iterations << "\tResolution:\t" << RESOLUTION_VALUE
 			<< "\tWidth:\t" << WIDTH << "\tHeight:\t" << HEIGHT
 			<< "\tStep:\t" << STEP << "\tScheduling:\t"
