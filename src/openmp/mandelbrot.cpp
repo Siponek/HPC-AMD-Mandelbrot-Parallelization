@@ -1,12 +1,12 @@
 #include <omp.h>
 
+#include <LogUtils.h>
 #include <chrono>
 #include <complex>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <string>
-#include <LogUtils.h>
 namespace MandelbrotSet
 {
 // Ranges of the set
@@ -96,7 +96,7 @@ int getThreadsUsed(int argc, char **argv)
 
 void computeMandelbrot(int *image, int iterations)
 {
-#pragma omp parallel for schedule(SCHEDULING_TYPE)
+#pragma omp parallel for schedule(SCHEDULING_TYPE) default(none) shared(image) firstprivate(iterations) 
 	for (int pos = 0; pos < HEIGHT * WIDTH; pos++)
 	{
 		image[pos] = 0;
