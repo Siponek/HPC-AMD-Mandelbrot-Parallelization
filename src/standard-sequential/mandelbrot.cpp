@@ -107,7 +107,12 @@ int main(int argc, char **argv)
 	ofstream log(logFile, ios::app);
 	if (log.is_open())
 	{
-		log << "Runtime:\t" << fileName << "\t" << duration.count() << "\tseconds"
+		log << "Date:\t" << __DATE__ << " " << __TIME__
+			<< "\tProgram:\t" << fileName << "\t\tIterations:\t"
+			<< iterations << "\tResolution:\t" << RESOLUTION_VALUE
+			<< "\tWidth:\t" << WIDTH << "\tHeight:\t" << HEIGHT
+			<< "\tStep:\t" << STEP << "\tScheduling:\t"
+			<< "\tTime:\t" << duration.count() << "\tseconds"
 			<< endl;
 		log.close();
 	}
