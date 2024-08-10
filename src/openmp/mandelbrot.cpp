@@ -147,6 +147,8 @@ int main(int argc, char **argv)
 	}
 	const int threads_used = getThreadsUsed(argc, argv);
 	int *const image = new int[HEIGHT * WIDTH];
+	const size_t image_size = HEIGHT * WIDTH;
+	fill_n(image, image_size, -1);
 	cout << "Calculating Mandelbrot set with " << threads_used
 		 << " threads with " << iterations << " iterations."
 		 << endl;
