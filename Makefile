@@ -23,15 +23,12 @@ CLANG_FLAGS_EXT = -ffp-contract=fast -zopt -mllvm  -enable-strided-vectorization
 GCC_FLAGS = -Ofast -march=znver2 -mtune=znver2
 # Unified uses the same memory for CPU and GPU
 #  -mp is for OpenMP
-NVC_FLAGS = -fast -O4 -Xcompiler -Wall -I./lib #-gpu=mem:unified -mp
+NVC_FLAGS = -tp=znver2 -fast -O4 -Xcompiler -Wall -I./lib --c++23 #-gpu=mem:unified -mp
 # NVC_FLAGS = -fast -O4 -Minfo -Xcompiler -Wall -I./lib #-gpu=mem:unified -mp
 
 MKDIR = mkdir -p ${1}
 RM = rm -rf ${1}
 
-.PHONY: compile-all seq clean amd-seq
-
-compile-all: amd-seq-default seq
 
 $(BIN_DIR):
 	@$(call MKDIR,$(BIN_DIR))
@@ -42,12 +39,12 @@ $(OUT_DIR):
 seq: $(BIN_DIR) amd-seq gcc-seq
 
 amd-seq-default: $(BIN_DIR)
-	$(CC) -wall -O1 $(SRC_SEQ_FILE) $(LIB_LOGCPP) -o $(BIN_DIR)$(MB)_amd_seq_O1.exe
-	$(CC) -wall -O2 $(SRC_SEQ_FILE) $(LIB_LOGCPP) -o $(BIN_DIR)$(MB)_amd_seq_O2.exe
-	$(CC) -wall -O3 $(SRC_SEQ_FILE) $(LIB_LOGCPP) -o $(BIN_DIR)$(MB)_amd_seq_O3.exe
-	$(GCC) -wall -O1 $(SRC_SEQ_FILE) $(LIB_LOGCPP) -o $(BIN_DIR)$(MB)_g++_seq_O1.exe
-	$(GCC) -wall -O2 $(SRC_SEQ_FILE) $(LIB_LOGCPP) -o $(BIN_DIR)$(MB)_g++_seq_O2.exe
-	$(GCC) -wall -O3 $(SRC_SEQ_FILE) $(LIB_LOGCPP) -o $(BIN_DIR)$(MB)_g++_seq_O3.exe
+	$(CC) $(CFLAGS) -O1 $(SRC_SEQ_FILE) $(LIB_LOGCPP) -o $(BIN_DIR)$(MB)_amd_seq_O1.exe
+	$(CC) $(CFLAGS) -O2 $(SRC_SEQ_FILE) $(LIB_LOGCPP) -o $(BIN_DIR)$(MB)_amd_seq_O2.exe
+	$(CC) $(CFLAGS) -O3 $(SRC_SEQ_FILE) $(LIB_LOGCPP) -o $(BIN_DIR)$(MB)_amd_seq_O3.exe
+	$(GCC) $(CFLAGS) -O1 $(SRC_SEQ_FILE) $(LIB_LOGCPP) -o $(BIN_DIR)$(MB)_g++_seq_O1.exe
+	$(GCC) $(CFLAGS) -O2 $(SRC_SEQ_FILE) $(LIB_LOGCPP) -o $(BIN_DIR)$(MB)_g++_seq_O2.exe
+	$(GCC) $(CFLAGS) -O3 $(SRC_SEQ_FILE) $(LIB_LOGCPP) -o $(BIN_DIR)$(MB)_g++_seq_O3.exe
 
 
 amd-seq: $(BIN_DIR)
@@ -60,7 +57,7 @@ run-amd-seq:
 	$(BIN_DIR)$(MB)_amd_seq.exe $(OUT_DIR)$(MB)_amd_seq.out $(ITERATIONS)
 
 run-g++-seq:
-	$(BIN_DIR)$(MB)_g++_seq.exe $(OUT_DIR)$(MB)_gcc_seq.out $(ITERATIONS)
+	$(BIN_DIR)$(MB)_g++_seq.exe $(OUT_DIR)$(MB)_g++_seq.out $(ITERATIONS)
 
 
 
@@ -125,6 +122,23 @@ cuda: $(BIN_DIR)
 
 run-cuda:
 	$(BIN_DIR)$(MB)_cuda.exe $(OUT_DIR)$(MB)_cuda.out $(ITERATIONS)
+
+
+.PHONY: compile-all-openmp
+compile-all-openmp: amd-openmp-ext amd-openmp g++-openmp
+
+
+.PHONY: compile-all
+compile-all: amd-seq-default seq compile-all-openmp cuda
+
+
+.PHONY: run-all-openmp
+run-all-openmp: run-amd-openmp-ext run-amd-openmp run-g++-openmp
+
+
+.PHONY: run-all
+run-all: run-amd-seq run-g++-seq run-amd-openmp-ext run-amd-openmp run-g++-openmp run-cuda
+
 
 clean:
 	@echo "Cleaning up..."
