@@ -17,6 +17,7 @@ LIB_LOGCPP = ./lib/LogUtils.cpp
 CC = clang++
 GCC = g++
 NVC = nvc++
+MPICC = mpiicc
 CFLAGS = -Wall -I./lib
 CLANG_FLAGS =-Ofast -march=znver2 -mtune=znver2 -g
 CLANG_FLAGS_EXT = -ffp-contract=fast -zopt -mllvm  -enable-strided-vectorization -mllvm -global-vectorize-slp=true
@@ -37,7 +38,7 @@ $(OUT_DIR):
 	@$(call MKDIR,$(OUT_DIR))
 
 seq: $(BIN_DIR) amd-seq gcc-seq
-
+#! SEQ
 amd-seq-default: $(BIN_DIR)
 	$(CC) $(CFLAGS) -O1 $(SRC_SEQ_FILE) $(LIB_LOGCPP) -o $(BIN_DIR)$(MB)_amd_seq_O1.exe
 	$(CC) $(CFLAGS) -O2 $(SRC_SEQ_FILE) $(LIB_LOGCPP) -o $(BIN_DIR)$(MB)_amd_seq_O2.exe
@@ -46,7 +47,7 @@ amd-seq-default: $(BIN_DIR)
 	$(GCC) $(CFLAGS) -O2 $(SRC_SEQ_FILE) $(LIB_LOGCPP) -o $(BIN_DIR)$(MB)_g++_seq_O2.exe
 	$(GCC) $(CFLAGS) -O3 $(SRC_SEQ_FILE) $(LIB_LOGCPP) -o $(BIN_DIR)$(MB)_g++_seq_O3.exe
 
-
+#! SEQ TUNED
 amd-seq: $(BIN_DIR)
 	$(CC) $(CFLAGS) $(CLANG_FLAGS) $(SRC_SEQ_FILE) $(LIB_LOGCPP) -o $(BIN_DIR)$(MB)_amd_seq.exe
 
@@ -60,7 +61,7 @@ run-g++-seq:
 	$(BIN_DIR)$(MB)_g++_seq.exe $(OUT_DIR)$(MB)_g++_seq.out $(ITERATIONS)
 
 
-
+# ! OpenMP
 define compile_amd_openmp_ext
 	$(CC) $(CFLAGS) -fopenmp -D $(1)_SCHED $(CLANG_FLAGS) $(CLANG_FLAGS_EXT) $(SRC_OPENMP_DIR)mandelbrot.cpp $(LIB_LOGCPP) -o $(BIN_DIR)$(MB)_amd_ext_$(1).exe
 endef
@@ -115,7 +116,7 @@ run-g++-openmp:
 	$(BIN_DIR)$(MB)_g++_guided.exe $(OUT_DIR)$(MB)_g++_openmp_guided.out $(ITERATIONS)
 	$(BIN_DIR)$(MB)_g++_runtime.exe $(OUT_DIR)$(MB)_g++_openmp_runtime.out $(ITERATIONS)
 
-
+#! CUDA
 cuda: $(BIN_DIR)
 	$(NVC) $(NVC_FLAGS) -g $(SRC_CUDA_DIR)mandelbrot.cu $(LIB_LOGCPP) -o $(BIN_DIR)$(MB)_cuda.exe
 # $(NVC) $(NVC_FLAGS) $(SRC_CUDA_DIR)mandelbrot.cu $(LIB_LOGCPP) -o $(BIN_DIR)$(MB)_cuda.exe
@@ -143,3 +144,30 @@ run-all: run-amd-seq run-g++-seq run-amd-openmp-ext run-amd-openmp run-g++-openm
 clean:
 	@echo "Cleaning up..."
 	@$(call RM,$(BIN_DIR)) $(call RM,$(OUT_DIR))
+
+# ! OpenMPI on OCAPIE server
+.PHONY: setup-mpi
+setup-mpi:
+	@echo "Setting up the environment..."
+	@mkdir -p $(BIN_DIR)
+	@mkdir -p $(OUT_DIR)
+	@mkdir -p $(OUT_DIR)/benchmark/
+
+.PHONY: compile-mpi
+compile-mpi:
+	$(MPICC) $(MPI_DIR)mandelbrot.cpp -o $(BIN_DIR)mpi_mandelbrot
+
+.PHONY: run-mpi
+run-mpi: compile-mpi
+	@echo "MPI mandelbrot binary compiled."
+	mpiexec -np 4 $(BIN_DIR)mpi_mandelbrot $(OUTPUT_DIR)mpi_out.txt
+
+.PHONY: benchmark
+benchmark: compile-mpi
+	ITERATIONS=1000
+	for nodes in 16 32 64 128 256 512 1024 2048 3072; do \
+		for resolution in 1000 2000 5000; do \
+			$(MPICC) -DRESOLUTION=$$resolution $(MPI_DIR)mandelbrot.cpp -o $(BIN_DIR)mpi_mandelbrot; \
+			mpiexec -np $$nodes $(BIN_DIR)mpi_mandelbrot $(OUTPUT_DIR)/benchmark/mpi_out_$$nodes.txt 1000 $$resolution $(ITERATIONS); \
+		done \
+	done
