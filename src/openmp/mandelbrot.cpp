@@ -18,16 +18,6 @@ constexpr float MAX_Y = 1.0;
 // Image ratio
 constexpr float RATIO_X = (MAX_X - MIN_X);
 constexpr float RATIO_Y = (MAX_Y - MIN_Y);
-
-#ifndef RESOLUTION
-#define RESOLUTION 1000
-#endif
-constexpr int RESOLUTION_VALUE = (int)RESOLUTION;
-// Image size
-constexpr int WIDTH = static_cast<int>(RATIO_X * RESOLUTION_VALUE);
-constexpr int HEIGHT = static_cast<int>(RATIO_Y * RESOLUTION_VALUE);
-
-constexpr float STEP = RATIO_X / WIDTH;
 } // namespace MandelbrotSet
 namespace fs = std::filesystem;
 
@@ -53,32 +43,13 @@ namespace fs = std::filesystem;
 using namespace std;
 using namespace MandelbrotSet;
 
-string createLogFileName(const string &outputFile,
-						 const string &additionalName = "")
-{
-	const fs::path outputPath(outputFile);
-	std::string filename = outputPath.stem().string();
-	size_t underscorePos = filename.find('_');
-	underscorePos = filename.find('_', underscorePos + 2);
-	if (underscorePos != string::npos)
-	{
-		filename = filename.substr(0, underscorePos);
-	}
-	const fs::path logFilePath =
-		// out/..
-		outputPath.parent_path().parent_path() / "logs" /
-		(filename + additionalName + ".log");
-	fs::create_directories(logFilePath.parent_path());
-	return logFilePath.string();
-}
-
 int getThreadsUsed(int argc, char **argv)
 {
 	int threads_used = omp_get_max_threads();
 	for (int i = 1; i < argc; ++i)
 	{
 		string arg = argv[i];
-		if (arg == "-threads" && i + 1 < argc)
+		if (arg == "--threads" && i + 1 < argc)
 		{
 			threads_used = stoi(argv[++i]);
 			if (threads_used <= 0)
@@ -94,10 +65,13 @@ int getThreadsUsed(int argc, char **argv)
 	return threads_used;
 }
 
-void computeMandelbrot(int *image, int iterations)
+void computeMandelbrot(int *image, int iterations, int WIDTH,
+					   int HEIGHT, float STEP)
 {
-	// region provided by *image is shared among threads, the pointer is private
-#pragma omp parallel for schedule(SCHEDULING_TYPE) default(none) firstprivate(image, iterations) 
+	// region provided by *image is shared among threads, the
+	// pointer is private
+#pragma omp parallel for schedule(SCHEDULING_TYPE) default(none)   \
+	firstprivate(image, iterations)
 	for (int pos = 0; pos < HEIGHT * WIDTH; pos++)
 	{
 		image[pos] = 0;
@@ -110,7 +84,7 @@ void computeMandelbrot(int *image, int iterations)
 		complex<double> z(0, 0);
 		for (int i = 1; i <= iterations; i++)
 		{
-			z = pow(z, 2) + c;
+			z = z * z + c;
 			// If it is convergent
 			if (abs(z) >= 2)
 			{
@@ -138,13 +112,24 @@ int main(int argc, char **argv)
 			 << endl;
 		return -1;
 	}
-	const int iterations = stoi(argv[2]);
+	// Parse command line arguments
+	cmdParse::ParsedArgs args =
+		cmdParse::parse_cmd_arguments(argc, argv);
+	const int iterations = args.iterations;
+	const int resolution_value = args.resolution;
+	const fs::path outputFilePath(args.outputFile);
 	if (iterations <= 0)
 	{
 		cout << "Please specify a positive number of iterations."
 			 << endl;
 		return -2;
 	}
+	// Image size
+	const int WIDTH =
+		static_cast<int>(MandelbrotSet::RATIO_X * resolution_value);
+	const int HEIGHT =
+		static_cast<int>(MandelbrotSet::RATIO_Y * resolution_value);
+	const float STEP = MandelbrotSet::RATIO_X / WIDTH;
 	const int threads_used = getThreadsUsed(argc, argv);
 	int *const image = new int[HEIGHT * WIDTH];
 	const size_t image_size = HEIGHT * WIDTH;
@@ -154,14 +139,41 @@ int main(int argc, char **argv)
 		 << endl;
 
 	const auto start = std::chrono::steady_clock::now();
-	computeMandelbrot(image, iterations);
+	computeMandelbrot(image, iterations, WIDTH, HEIGHT, STEP);
 	const auto end = std::chrono::steady_clock::now();
 
 	chrono::duration<double> duration = end - start;
 	cout << endl
 		 << "Time elapsed: " << duration.count() << " seconds."
 		 << endl;
-
+	//? CSV
+	const string csvFile =
+		logutils::createCsvFilename(argv[1], "_openmp_");
+	const string header =
+		"Date,Time,Program,Iterations,Resolution,Width,Height,Step,"
+		"Scheduling, Threads, Time (seconds)";
+	bool hasHeader = logutils::csvFileHasHeader(csvFile, header);
+	ofstream csv(csvFile, ios::app);
+	if (csv.is_open())
+	{
+		if (!hasHeader)
+		{
+			cout << "Adding header to csv file." << endl;
+			csv << header << endl;
+		}
+		csv << __DATE__ << "," << __TIME__ << "," << fileName << ","
+			<< iterations << "," << RESOLUTION_VALUE << "," << WIDTH
+			<< "," << HEIGHT << "," << STEP << ","
+			<< SCHEDULING_STRING << "," << threads_used << ","
+			<< duration.count() << endl;
+		csv.close();
+		cout << "CSV entry added successfully." << endl;
+	}
+	else
+	{
+		cerr << "Unable to open CSV file." << endl;
+	}
+	//? log
 	const string logFile =
 		logutils::createLogFileName(argv[1], "_openmp_");
 	ofstream log(logFile, ios::app);
@@ -176,13 +188,13 @@ int main(int argc, char **argv)
 			<< "\tTime:\t" << duration.count() << "\tseconds"
 			<< endl;
 		log.close();
+		cout << "Log entry added successfully." << endl;
 	}
 	else
 	{
 		cerr << "Unable to open log file." << endl;
 	}
 
-	const fs::path outputFilePath(argv[1]);
 	try
 	{
 		fs::create_directories(outputFilePath.parent_path());

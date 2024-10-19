@@ -41,7 +41,8 @@ std::string createFilename(const std::string &outputFile,
 		(baseFilename + additionalName + extension);
 
 	fs::create_directories(targetPath.parent_path());
-
+	std::cout << "Creating file: " << targetPath.string()
+			  << std::endl;
 	return targetPath.string();
 }
 
@@ -83,8 +84,6 @@ bool csvFileHasHeader(const std::string &filePath,
 				  << std::endl;
 		return false;
 	}
-	std::cout << firstLine << std::endl;
-	std::cout << header << std::endl;
 	bool hasHeader = (firstLine == header);
 	std::cout << "Header present: " << (hasHeader ? "Yes" : "No")
 			  << std::endl;
@@ -92,3 +91,119 @@ bool csvFileHasHeader(const std::string &filePath,
 }
 
 } // namespace logutils
+
+namespace cmdParse
+{
+cmdParse::Command getCommand(const std::string &arg)
+{
+	if (arg == "--help")
+		return Command::HELP;
+	if (arg == "--version")
+		return Command::VERSION;
+	if (arg == "--iterations")
+		return Command::ITERATIONS;
+	if (arg == "--resolution")
+		return Command::RESOLUTION;
+	// Assuming the first non-flag argument is the output file
+	return Command::INVALID;
+}
+
+cmdParse::ParsedArgs parse_cmd_arguments(int argc, char *argv[])
+{
+	ParsedArgs args;
+	std::filesystem::path filePath = argv[0];
+	std::string fileName = filePath.filename().string();
+
+	if (argc < 2)
+	{
+		std::cerr << "Usage: " << fileName
+				  << " <output_file> [options]" << std::endl;
+		exit(EXIT_FAILURE);
+	}
+
+	for (int i = 1; i < argc; ++i)
+	{
+		std::string arg = argv[i];
+		Command cmd = getCommand(arg);
+
+		switch (cmd)
+		{
+		case Command::HELP:
+			std::cout
+				<< "Usage: " << fileName
+				<< " <output_file> [--iterations <iterations>] "
+				   "[--resolution <resolution>] [--version]"
+				<< std::endl;
+			exit(EXIT_SUCCESS);
+
+		case Command::VERSION:
+			std::cout << "Version: 1.0.0" << std::endl;
+			exit(EXIT_SUCCESS);
+
+		case Command::ITERATIONS:
+			if (i + 1 < argc)
+			{
+				args.iterations = std::stoi(argv[++i]);
+				if (args.iterations <= 0)
+				{
+					std::cerr << "--iterations must be a positive "
+								 "integer."
+							  << std::endl;
+					exit(EXIT_FAILURE);
+				}
+			}
+			else
+			{
+				std::cerr << "--iterations requires a value."
+						  << std::endl;
+				exit(EXIT_FAILURE);
+			}
+			break;
+
+		case Command::RESOLUTION:
+			if (i + 1 < argc)
+			{
+				args.resolution = std::stoi(argv[++i]);
+				if (args.resolution <= 0)
+				{
+					std::cerr << "--resolution must be a positive "
+								 "integer."
+							  << std::endl;
+					exit(EXIT_FAILURE);
+				}
+			}
+			else
+			{
+				std::cerr << "--resolution requires a value."
+						  << std::endl;
+				exit(EXIT_FAILURE);
+			}
+			break;
+
+		case Command::INVALID:
+			if (args.outputFile.empty())
+			{
+				args.outputFile = arg;
+			}
+			else
+			{
+				std::cerr << "Invalid argument or multiple output "
+							 "files specified: "
+						  << arg << std::endl;
+				exit(EXIT_FAILURE);
+			}
+			break;
+		}
+	}
+
+	if (args.outputFile.empty())
+	{
+		std::cerr
+			<< "Please specify the output file as a parameter."
+			<< std::endl;
+		exit(EXIT_FAILURE);
+	}
+
+	return args;
+}
+} // namespace cmdParse

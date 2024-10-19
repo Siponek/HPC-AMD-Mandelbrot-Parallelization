@@ -3,7 +3,6 @@ $(info Running Makefile for HPC project)
 
 BIN_DIR = ./bin/
 OUT_DIR = ./out/
-ITERATIONS = 1000
 SRC_SEQ_DIR = ./src/standard-sequential/
 SRC_OPENMP_DIR = ./src/openmp/
 SRC_CUDA_DIR = ./src/cuda/
@@ -32,6 +31,10 @@ MPI_FLAGS = -std=c++17 -Ofast -march=native -xHost -Wall -qopt-report=5 -qopt-re
 MKDIR = mkdir -p ${1}
 RM = rm -rf ${1}
 
+ITERATIONS := 1000 2000 4000
+RESOLUTIONS := 1000 2000 4000 8000
+THREAD_COUNTS := 1 2 4 8 16
+SCHEDULERS := DYNAMIC STATIC GUIDED RUNTIME
 
 $(BIN_DIR):
 	@$(call MKDIR,$(BIN_DIR))
@@ -57,10 +60,24 @@ gcc-seq: $(BIN_DIR)
 	$(GCC) $(CFLAGS) $(SRC_SEQ_FILE) $(LIB_LOGCPP) -o $(BIN_DIR)$(MB)_g++_seq.exe
 
 run-amd-seq:
-	$(BIN_DIR)$(MB)_amd_seq.exe $(OUT_DIR)$(MB)_amd_seq.out $(ITERATIONS)
+	@for res in $(RESOLUTIONS); do \
+		for iter in $(ITERATIONS); do \
+			echo "Running AMD SEQ with $$res resolution and $$iter iterations"; \
+			$(BIN_DIR)$(MB)_amd_seq.exe $(OUT_DIR)$(MB)_amd_seq_$$res.out --iterations $$iter --resolution $$res; \
+		done \
+	done
 
 run-g++-seq:
-	$(BIN_DIR)$(MB)_g++_seq.exe $(OUT_DIR)$(MB)_g++_seq.out $(ITERATIONS)
+	@for res in $(RESOLUTIONS); do \
+		for iter in $(ITERATIONS); do \
+			echo "Running G++ SEQ with $$res resolution and $$iter iterations"; \
+			$(BIN_DIR)$(MB)_g++_seq.exe $(OUT_DIR)$(MB)_g++_seq_$$res.out --iterations $$iter --resolution $$res; \
+		done \
+	done
+
+run-amd-seq-full: amd-seq run-amd-seq
+run-g++-seq-full: gcc-seq run-g++-seq
+
 
 
 # ! OpenMP
@@ -76,47 +93,75 @@ define compile_g++_openmp
 	$(GCC) $(CFLAGS) -fopenmp -D $(1)_SCHED $(GCC_FLAGS) $(SRC_OPENMP_DIR)mandelbrot.cpp $(LIB_LOGCPP) -o $(BIN_DIR)$(MB)_g++_$(1).exe
 endef
 
-
 amd-openmp-ext: $(BIN_DIR)
-	$(call compile_amd_openmp_ext,DYNAMIC)
-	$(call compile_amd_openmp_ext,STATIC)
-	$(call compile_amd_openmp_ext,GUIDED)
-	$(call compile_amd_openmp_ext,RUNTIME)
+	@for sched in $(SCHEDULERS); do \
+		echo "Compiling AMD OpenMP with extended flags for sched $$sched"; \
+		$(call compile_amd_openmp_ext,"$$sched"); \
+	done
+	echo "AMD OpenMP with extended flags compiled."
 
 
 run-amd-openmp-ext:
-	$(BIN_DIR)$(MB)_amd_ext_dynamic.exe $(OUT_DIR)$(MB)_amd_ext_openmp_dynamic.out $(ITERATIONS)
-	$(BIN_DIR)$(MB)_amd_ext_static.exe $(OUT_DIR)$(MB)_amd_ext_openmp_static.out $(ITERATIONS)
-	$(BIN_DIR)$(MB)_amd_ext_guided.exe $(OUT_DIR)$(MB)_amd_ext_openmp_guided.out $(ITERATIONS)
-	$(BIN_DIR)$(MB)_amd_ext_runtime.exe $(OUT_DIR)$(MB)_amd_ext_openmp_runtime.out $(ITERATIONS)
+	echo "Running AMD OpenMP with extended flags..."
+	@for sched in $(SCHEDULERS); do \
+		for threads in $(THREAD_COUNTS); do \
+			for res in $(RESOLUTIONS); do \
+				for iter in $(ITERATIONS); do \
+					exe=$(BIN_DIR)$(MB)_amd_ext_$$sched.exe; \
+					out=$(OUT_DIR)$(MB)_amd_ext_openmp_$$sched_threads$$threads$$res.out; \
+					echo "Running $$exe with scheduler $$sched, $$threads threads, resolution $$res, iterations $$iter "; \
+					$$exe $$out --iterations $$iter --resolution $$res --threads "$$threads"; \
+				done \
+			done \
+		done \
+	done
 
+run-amd-openmp-ext-full: amd-openmp-ext run-amd-openmp-ext
 
 amd-openmp: $(BIN_DIR)
-	$(call compile_amd_openmp,DYNAMIC)
-	$(call compile_amd_openmp,STATIC)
-	$(call compile_amd_openmp,GUIDED)
-	$(call compile_amd_openmp,RUNTIME)
+	@for sched in $(SCHEDULERS); do \
+		echo "Compiling AMD OpenMP for sched $$sched"; \
+		$(call compile_amd_openmp,"$$sched"); \
+	done
+	echo "AMD OpenMP compiled."
+
 
 
 run-amd-openmp:
-	$(BIN_DIR)$(MB)_amd_dynamic.exe $(OUT_DIR)$(MB)_amd_openmp_dynamic.out $(ITERATIONS)
-	$(BIN_DIR)$(MB)_amd_static.exe $(OUT_DIR)$(MB)_amd_openmp_static.out $(ITERATIONS)
-	$(BIN_DIR)$(MB)_amd_guided.exe $(OUT_DIR)$(MB)_amd_openmp_guided.out $(ITERATIONS)
-	$(BIN_DIR)$(MB)_amd_runtime.exe $(OUT_DIR)$(MB)_amd_openmp_runtime.out $(ITERATIONS)
+	echo "Running AMD OpenMP with extended flags..."
+	@for sched in $(SCHEDULERS); do \
+		for threads in $(THREAD_COUNTS); do \
+			for res in $(RESOLUTIONS); do \
+				for iter in $(ITERATIONS); do \
+					exe=$(BIN_DIR)$(MB)_amd_$$sched.exe; \
+					out=$(OUT_DIR)$(MB)_amd_openmp_$$sched_threads$$threads.out; \
+					echo "Running $$exe with $$threads threads and scheduler $$sched"; \
+					$$exe $$out --iterations $$iter --resolution $$res --threads "$$threads"; \
+				done \
+			done \
+		done \
+	done
+
 
 
 g++-openmp: $(BIN_DIR)
-	$(call compile_g++_openmp,DYNAMIC)
-	$(call compile_g++_openmp,STATIC)
-	$(call compile_g++_openmp,GUIDED)
-	$(call compile_g++_openmp,RUNTIME)
+	@for sched in $(SCHEDULERS); do \
+		$(call compile_g++_openmp,$$sched); \
+	done
 
 
 run-g++-openmp:
-	$(BIN_DIR)$(MB)_g++_dynamic.exe $(OUT_DIR)$(MB)_g++_openmp_dynamic.out $(ITERATIONS)
-	$(BIN_DIR)$(MB)_g++_static.exe $(OUT_DIR)$(MB)_g++_openmp_static.out $(ITERATIONS)
-	$(BIN_DIR)$(MB)_g++_guided.exe $(OUT_DIR)$(MB)_g++_openmp_guided.out $(ITERATIONS)
-	$(BIN_DIR)$(MB)_g++_runtime.exe $(OUT_DIR)$(MB)_g++_openmp_runtime.out $(ITERATIONS)
+	echo "Running G++ OpenMP"
+	@for sched in $(SCHEDULERS); do \
+		for threads in $(THREAD_COUNTS); do \
+			for iter in $(ITERATIONS); do \
+				exe=$(BIN_DIR)$(MB)_g++_$$sched.exe; \
+				out=$(OUT_DIR)$(MB)_g++_openmp_$$sched_threads$$threads.out; \
+				echo "Running $$exe with $$threads threads and scheduler $$sched"; \
+				$$exe $(OUT_DIR)$(MB)_g++_openmp_$$sched_threads$$threads.out $$iter -threads "$$threads"; \
+			done \
+		done \
+	done
 
 #! CUDA
 cuda: $(BIN_DIR)
@@ -124,8 +169,10 @@ cuda: $(BIN_DIR)
 # $(NVC) $(NVC_FLAGS) $(SRC_CUDA_DIR)mandelbrot.cu $(LIB_LOGCPP) -o $(BIN_DIR)$(MB)_cuda.exe
 
 run-cuda:
-	$(BIN_DIR)$(MB)_cuda.exe $(OUT_DIR)$(MB)_cuda.out $(ITERATIONS)
-
+	for iter in $(ITERATIONS); do \
+		echo "Running CUDA with $$iter iterations"; \
+		$(BIN_DIR)$(MB)_cuda.exe $(OUT_DIR)$(MB)_cuda.out $$iter; \
+	done
 
 .PHONY: compile-all-openmp
 compile-all-openmp: amd-openmp-ext amd-openmp g++-openmp
@@ -170,7 +217,10 @@ benchmark: compile-mpi
 	@echo ""
 	@for nodes in 16 32 64 128 256 512 1024 2048 3072; do \
 		for resolution in 1000 2000 4000 8000; do \
-			mpiexec -hostfile ./machinefile.txt -perhost 1 -np $$nodes $(BIN_DIR)mandelbrot_mpi.exe $(OUT_DIR)/mandelbrot_mpi_$$nodes_$$resolution.out $(ITERATIONS) $$resolution; \
+			for iter in $(ITERATIONS); do \
+				echo "Running MPI benchmark with $$nodes nodes, $$resolution resolution $$iter iterations"; \
+				mpiexec -hostfile ./machinefile.txt -perhost 1 -np $$nodes $(BIN_DIR)mandelbrot_mpi.exe $(OUT_DIR)/mandelbrot_mpi_$$nodes_$$resolution.out $$iter $$resolution; \
+			done \
 		done \
 	done
 	@echo "MPI benchmark completed"

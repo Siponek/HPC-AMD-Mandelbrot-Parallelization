@@ -36,4 +36,4 @@
 bin
 out
 **/*.log
-**/*.data
+**/*.csv
