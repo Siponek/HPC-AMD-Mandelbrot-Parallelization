@@ -84,7 +84,8 @@ int main(int argc, char **argv)
 		}
 	}
 	const auto end = chrono::steady_clock::now();
-	const string csvFile = logutils::createCsvFilename(argv[1]);
+	const string csvFile =
+		logutils::createCsvFilename(argv[1], "_seq_");
 	const string header =
 		"Date,Time,Program,Iterations,Resolution,Width,Height,Step,"
 		"Scheduling,Time (seconds)";
