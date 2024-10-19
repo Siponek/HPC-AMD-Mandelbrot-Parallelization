@@ -110,7 +110,7 @@ int main(int argc, char **argv)
 			<< "," << HEIGHT << "," << STEP << "," << "" << ","
 			<< duration.count() << endl;
 		csv.close();
-		cout << "Log entry added successfully." << endl;
+		cout << "CSV entry added successfully." << endl;
 	}
 	else
 	{
@@ -127,6 +127,7 @@ int main(int argc, char **argv)
 			<< "\tTime:\t" << duration.count() << "\tseconds"
 			<< endl;
 		log.close();
+		cout << "Log entry added successfully." << endl;
 	}
 	else
 	{
