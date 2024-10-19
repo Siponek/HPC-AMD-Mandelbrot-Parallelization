@@ -7,7 +7,7 @@ ITERATIONS = 1000
 SRC_SEQ_DIR = ./src/standard-sequential/
 SRC_OPENMP_DIR = ./src/openmp/
 SRC_CUDA_DIR = ./src/cuda/
-SRC_OPEN_MPI_DIR = ./src/open-mpi/
+SRC_OPEN_MPI_DIR = ./src/mpi/
 
 SRC_SEQ_FILE = $(SRC_SEQ_DIR)mandelbrot.cpp
 MB = mandelbrot
@@ -26,6 +26,8 @@ GCC_FLAGS = -Ofast -march=znver2 -mtune=znver2
 #  -mp is for OpenMP
 NVC_FLAGS = -tp=znver2 -fast -O4 -Xcompiler -Wall -I./lib --c++23 #-gpu=mem:unified -mp
 # NVC_FLAGS = -fast -O4 -Minfo -Xcompiler -Wall -I./lib #-gpu=mem:unified -mp
+MPI_FLAGS = -std=c++17 -Ofast -march=native -xHost -Wall -qopt-report=5 -qopt-report-phase=vec -qopt-report-file=optimization_report.txt
+
 
 MKDIR = mkdir -p ${1}
 RM = rm -rf ${1}
@@ -151,23 +153,24 @@ setup-mpi:
 	@echo "Setting up the environment..."
 	@mkdir -p $(BIN_DIR)
 	@mkdir -p $(OUT_DIR)
-	@mkdir -p $(OUT_DIR)/benchmark/
 
 .PHONY: compile-mpi
 compile-mpi:
-	$(MPICC) $(MPI_DIR)mandelbrot.cpp -o $(BIN_DIR)mpi_mandelbrot
+	$(MPICC) $(MPI_FLAGS) $(SRC_OPEN_MPI_DIR)mandelbrot.cpp -o $(BIN_DIR)mandelbrot_mpi.exe
 
 .PHONY: run-mpi
 run-mpi: compile-mpi
 	@echo "MPI mandelbrot binary compiled."
-	mpiexec -np 4 $(BIN_DIR)mpi_mandelbrot $(OUTPUT_DIR)mpi_out.txt
+	mpiexec -hostfile ./machinefile.txt -perhost 1 -np 7 $(BIN_DIR)mandelbrot_mpi.exe $(OUT_DIR)mandelbrot_mpi.out
+
+# TODO make a bsub job submissionn
 
 .PHONY: benchmark
 benchmark: compile-mpi
-	ITERATIONS=1000
-	for nodes in 16 32 64 128 256 512 1024 2048 3072; do \
-		for resolution in 1000 2000 5000; do \
-			$(MPICC) -DRESOLUTION=$$resolution $(MPI_DIR)mandelbrot.cpp -o $(BIN_DIR)mpi_mandelbrot; \
-			mpiexec -np $$nodes $(BIN_DIR)mpi_mandelbrot $(OUTPUT_DIR)/benchmark/mpi_out_$$nodes.txt 1000 $$resolution $(ITERATIONS); \
+	@echo ""
+	@for nodes in 16 32 64 128 256 512 1024 2048 3072; do \
+		for resolution in 1000 2000 4000 8000; do \
+			mpiexec -hostfile ./machinefile.txt -perhost 1 -np $$nodes $(BIN_DIR)mandelbrot_mpi.exe $(OUT_DIR)/mandelbrot_mpi_$$nodes_$$resolution.out $(ITERATIONS) $$resolution; \
 		done \
 	done
+	@echo "MPI benchmark completed"

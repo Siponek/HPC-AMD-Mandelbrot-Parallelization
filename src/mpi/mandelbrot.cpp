@@ -3,202 +3,400 @@
 #include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <sys/stat.h>
+#include <cstring>
+#include <cstdlib>
+#include <cctype>
+#include <algorithm>
 #include <mpi.h>
+#include <string>
+
+// Define exception classes if they are not defined elsewhere
+// Remove these definitions if NoNumber and Overflow are already defined in your project
+class NoNumber : public std::exception {
+    std::string message;
+public:
+    NoNumber(const std::string& input) : message("NoNumber exception: " + input) {}
+    virtual const char* what() const noexcept override {
+        return message.c_str();
+    }
+};
+
+class Overflow : public std::exception {
+    std::string message;
+public:
+    Overflow(const std::string& input) : message("Overflow exception: " + input) {}
+    virtual const char* what() const noexcept override {
+        return message.c_str();
+    }
+};
 
 namespace MandelbrotSet
 {
-// Ranges of the set
-constexpr float MIN_X = -2.0;
-constexpr float MAX_X = 1.0;
-constexpr float MIN_Y = -1.0;
-constexpr float MAX_Y = 1.0;
-} // namespace MandelbrotSet
+    // Ranges of the set
+    constexpr float MIN_X = -2.0;
+    constexpr float MAX_X = 1.0;
+    constexpr float MIN_Y = -1.0;
+    constexpr float MAX_Y = 1.0;
+    constexpr float RATIO_X = (MAX_X - MIN_X);
+    constexpr float RATIO_Y = (MAX_Y - MIN_Y);
+}
+
 using namespace std;
 using namespace MandelbrotSet;
-namespace fs = std::filesystem;
+
+// Function to extract file name from a given path
+string getFileName(const string& path)
+{
+    size_t pos = path.find_last_of("/\\");
+    if (pos != string::npos)
+    {
+        return path.substr(pos + 1);
+    }
+    else
+    {
+        return path; // Return the entire string if no separator is found
+    }
+}
+// Function to extract the base filename (without extension) and limit to first two underscores
+string extractBaseFileName(const string& filename)
+{
+    // Remove extension
+    size_t lastDot = filename.find_last_of('.');
+    string base = (lastDot != string::npos) ? filename.substr(0, lastDot) : filename;
+
+    // Limit to first two underscores
+    size_t firstUnderscore = base.find('_');
+    if (firstUnderscore == string::npos)
+        return base; // No underscore found
+
+    size_t secondUnderscore = base.find('_', firstUnderscore + 1);
+    if (secondUnderscore != string::npos)
+        return base.substr(0, secondUnderscore);
+    else
+        return base; // Only one underscore found
+}
+
+string createLogFileName(const std::string& outputFile,
+                               const std::string& additionalName = "")
+{
+    // Extract filename from path
+    std::string filename = getFileName(outputFile);
+    // Extract base filename
+    filename = extractBaseFileName(filename);
+
+    // Define log directory
+    std::string logDir = "logs";
+
+    // Create 'logs' directory if it doesn't exist
+    struct stat info;
+    if (stat(logDir.c_str(), &info) != 0)
+    {
+        // Directory does not exist, attempt to create it
+        if (mkdir(logDir.c_str(), 0755) != 0)
+        {
+            std::cerr << "Error: Unable to create log directory '" << logDir << "'." << endl;
+            // You can choose to exit or handle the error as needed
+        }
+    }
+    else if (!(info.st_mode & S_IFDIR))
+    {
+        std::cerr << "Error: '" << logDir << "' exists but is not a directory." << endl;
+        // Handle the error as needed
+    }
+
+    // Construct log file path
+    std::string logFilePath = logDir + "/" + filename + additionalName + ".log";
+    return logFilePath;
+}
+
 
 void checkMPIError(int errCode, const string &msg)
 {
-	if (errCode != MPI_SUCCESS)
-	{
-		cerr << "MPI Error: " << msg << " Error Code: " << errCode
-			 << endl;
-		MPI_Abort(MPI_COMM_WORLD, errCode);
-	}
+    if (errCode != MPI_SUCCESS)
+    {
+        cerr << "MPI Error: " << msg << " Error Code: " << errCode << endl;
+        MPI_Abort(MPI_COMM_WORLD, errCode);
+    }
 }
 
-bool isValidOutputPath(const string &output_file)
-{
-	fs::path outputPath(output_file);
+// Rewritten isValidOutputPath without using filesystem
+bool isValidOutputPath(const string& output_file) {
+    // Extract parent directory from output_file
+    size_t pos = output_file.find_last_of("/\\");
+    string parentPath;
+    if (pos != string::npos)
+    {
+        parentPath = output_file.substr(0, pos);
+    }
+    else
+    {
+        parentPath = "."; // Current directory if no parent path is found
+    }
 
-	// Check if the parent directory exists
-	fs::path parentPath = outputPath.parent_path();
-	if (!parentPath.empty() && !fs::exists(parentPath))
-	{
-		cerr << "Error: The directory " << parentPath
-			 << " does not exist." << endl;
-		return false;
-	}
+    // Check if parent directory exists
+    struct stat sb;
+    if (!parentPath.empty())
+    {
+        if (stat(parentPath.c_str(), &sb) != 0)
+        {
+            cerr << "Error: The directory " << parentPath << " does not exist." << endl;
+            return false;
+        }
 
-	// Check if the path is writable
-	if (!parentPath.empty() && !fs::is_directory(parentPath))
-	{
-		cerr << "Error: The path " << parentPath
-			 << " is not a directory." << endl;
-		return false;
-	}
+        // Check if it is indeed a directory
+        if (!S_ISDIR(sb.st_mode))
+        {
+            cerr << "Error: The path " << parentPath << " is not a directory." << endl;
+            return false;
+        }
+    }
 
-	// Check if we can write to the directory
-	std::ofstream testFile(output_file);
-	if (!testFile.is_open())
-	{
-		cerr << "Error: Cannot write to the file " << output_file
-			 << endl;
-		return false;
-	}
-	testFile.close();
-	return true;
+    // Attempt to open the file to check write permissions
+    std::ofstream testFile(output_file.c_str());
+    if (!testFile.is_open())
+    {
+        cerr << "Error: Cannot write to the file " << output_file << endl;
+        return false;
+    }
+    testFile.close();
+    return true;
+}
+
+int castInput(std::string& input) {
+    int result{};
+    // Check if there is any alphabetic character in the input string
+    if (std::any_of(input.begin(), input.end(), ::isalpha)) {
+        // If so, throw NoNumber exception
+        throw NoNumber(input);
+    }
+    // Check if the string has more than 10 characters to prevent integer overflow
+    if (input.length() > 10) {
+        // If so, throw Overflow exception
+        throw Overflow(input);
+    }
+    // Convert string to integer
+    result = std::stoi(input);
+    return result;
 }
 
 int main(int argc, char **argv)
 {
-	cout.sync_with_stdio(false);
+    // cout.sync_with_stdio(false);
+    string programPath = argv[0];
+    string fileName = getFileName(programPath); // Extracted filename
 
-	fs::path filePath = argv[0];
-	string fileName = filePath.filename().string();
-	int err, nproc, myid;
-	int iterations = 0, resolution = 0;
+    int err, nproc, myid;
+    err = MPI_Init(&argc, &argv);
+    checkMPIError(err, "MPI_Init failed.");
+    err = MPI_Comm_size(MPI_COMM_WORLD, &nproc);
+    checkMPIError(err, "MPI_Comm_size failed.");
+    err = MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+    checkMPIError(err, "MPI_Comm_rank failed.");
+    // Check for correct number of arguments
+    if (argc < 4)
+    {
+        if (myid == 0){
+            cerr << "Incorrect number of argumennts!";
+            cerr << "Usage: " << fileName
+                 << " <output_file> <iterations> <resolution>" << endl;
+        }
+        MPI_Finalize();
+        return -1;
+    }
 
-	err = MPI_Init(&argc, &argv);
-	checkMPIError(err, "MPI_Init failed.");
-	err = MPI_Comm_size(MPI_COMM_WORLD, &nproc);
-	checkMPIError(err, "MPI_Comm_size  failed.");
-	err = MPI_Comm_rank(MPI_COMM_WORLD, &myid);
-	checkMPIError(err, "MPI_Comm_rank  failed.");
+    int iterations = 0;
+    int resolution = 0;
+    string argToString = argv[2];
 
-	if (argc < 4)
-	{
-		if (myid == 0)
-		{
-			cerr << "Usage: " << fileName
-				 << " (path) <output_file> (int) <iterations> "
-					"(int) <resolution>"
-				 << endl;
-		}
-		MPI_Finalize();
-		return -1;
-	}
-	try
-	{
-		iterations = stoi(argv[2]);
-		resolution = stoi(argv[3]);
+    try {
+        // Convert iterations input to integer
+        argToString = argv[2];
+        iterations = castInput(argToString);
+        if (iterations <= 0)
+        {
+            cerr << "Please specify a positive number of iterations."<< endl;
+            MPI_Finalize();
+            return -2;
+        }
+    }
+    // Catch custom exceptions
+    catch (const NoNumber & e) {
+        cerr << e.what() << "\n";
+        MPI_Finalize();
+        return -2;
+    }
+    catch (const Overflow & e) {
+        cerr << e.what() << "\n";
+        MPI_Finalize();
+        return -2;
+    }
+    // Catch standard exceptions from stoi
+    catch (const std::invalid_argument & e) {
+        cerr << "Invalid argument: " << e.what() << "\n";
+        MPI_Finalize();
+        return -2;
+    }
+    catch (const std::out_of_range & e) {
+        cerr << "Out of range error: " << e.what() << "\n";
+        MPI_Finalize();
+        return -2;
+    }
 
-		if (iterations <= 0 || resolution <= 0)
-		{
-			MPI_Finalize();
-			throw invalid_argument("Iterations and resolution must "
-								   "be positive integers.");
-		}
-	}
-	catch (const exception &e)
-	{
-		cerr << "Error: " << e.what() << endl;
-		MPI_Finalize();
-		return -2;
-	}
+    // Parse and validate resolution input
+    try {
+        argToString = argv[3];
+        resolution = castInput(argToString);
+        if (resolution <= 0)
+        {
+            cerr << "Please specify a positive resolution." << endl;
+            MPI_Finalize();
+            return -3;
+        }
+    }
+    catch (const NoNumber & e) {
+        cerr << e.what() << "\n";
+        MPI_Finalize();
+        return -2;
+    }
+    catch (const Overflow & e) {
+        cerr << e.what() << "\n";
+        MPI_Finalize();
+        return -2;
+    }
+    catch (const std::invalid_argument & e) {
+        cerr << "Invalid argument: " << e.what() << "\n";
+        MPI_Finalize();
+        return -2;
+    }
+    catch (const std::out_of_range & e) {
+        cerr << "Out of range error: " << e.what() << "\n";
+        MPI_Finalize();
+        return -2;
+    }
 
-	if (myid == 0 && !isValidOutputPath(argv[1]))
-	{
-		MPI_Finalize();
-		return -4;
-	}
-	// Call from first id
-	if (myid == 0)
-	{
-		cout << "Number of nodes: " << nproc << endl;
-		cout << "Resolution: " << resolution << endl;
-	}
-	constexpr float ratio_x = (MAX_X - MIN_X);
-	constexpr float ratio_y = (MAX_Y - MIN_Y);
-	const int width = static_cast<int>(ratio_x * resolution);
-	const int height = static_cast<int>(ratio_y * resolution);
-	const float step = ratio_x / width;
+    // Check if the output file path is valid on the root process
+    if (myid == 0 && !isValidOutputPath(argv[1]))
+    {
+        MPI_Finalize();
+        return -4;
+    }
 
-	const int total_pixels = height * width;
-	const int pixels_per_process = total_pixels / nproc;
-	const int start_index = myid * pixels_per_process;
-	const int end_index = (myid + 1) * pixels_per_process;
+    // Root process outputs number of nodes and resolution
+    if (myid == 0 )
+    {
+        cout << "Number of nodes: " << nproc << endl;
+        cout << "Resolution: " << resolution << endl;
+    }
 
-	int *image = nullptr;
-	int *sub_image = new int[pixels_per_process]();
+    // Define HEIGHT, WIDTH, STEP based on resolution
+    // Adjust these definitions as per your application's logic
+    const int HEIGHT = resolution * RATIO_Y;
+    const int WIDTH = resolution * RATIO_X;
+    const float STEP = RATIO_X / WIDTH;
+    const int ITERATIONS = iterations;
 
-	if (myid == 0)
-	{
-		image = new int[total_pixels];
-	}
+    const int total_pixels = HEIGHT * WIDTH;
+    const int pixels_per_process = total_pixels / nproc;
+    const int start_index = myid * pixels_per_process;
+    const int end_index = (myid + 1) * pixels_per_process;
 
-	auto start = chrono::steady_clock::now();
+    int *image = nullptr;
+    int *sub_image = new int[pixels_per_process]();
 
-	// Each process computes its portion of the image
-	for (int pos = start_index; pos < end_index; pos++)
-	{
-		const int row = pos / width;
-		const int col = pos % width;
-		const complex<double> c(col * step + MIN_X,
-								row * step + MIN_Y);
+    if (myid == 0)
+    {
+        image = new int[total_pixels];
+    }
 
-		complex<double> z(0, 0);
-		for (int i = 1; i <= iterations; i++)
-		{
-			z = pow(z, 2) + c;
+    auto start_time = chrono::steady_clock::now();
 
-			// If it is convergent
-			if (abs(z) >= 2)
-			{
-				sub_image[pos - start_index] = i;
-				break;
-			}
-		}
-	}
+    // Each process computes its portion of the image
+    for (int pos = start_index; pos < end_index; pos++)
+    {
+        const int row = pos / WIDTH;
+        const int col = pos % WIDTH;
+        const complex<double> c(col * STEP + MIN_X,
+                                row * STEP + MIN_Y);
 
-	// Gather results from all processes to the root process
-	err =
-		MPI_Gather(sub_image, pixels_per_process, MPI_INT, image,
-				   pixels_per_process, MPI_INT, 0, MPI_COMM_WORLD);
+        int iter = 1;
+        complex<double> z(0, 0);
+        for (; iter <= ITERATIONS; iter++)
+        {   
+            z = (z*z) + c;
 
-	if (myid == 0)
-	{
-		auto end = chrono::steady_clock::now();
-		cout << "Time elapsed: " << fixed << setprecision(2)
-			 << chrono::duration<double>(end - start).count()
-			 << " seconds." << endl;
-		// Write the result to a file
-		ofstream matrix_out;
+            // If the magnitude exceeds 2, the point is not in the Mandelbrot set
+            // if (abs(z) >= 2)
+            if ( ((z.real() * z.real()) + (z.imag() * z.imag()))>= 4) 
+            {
+                sub_image[pos - start_index] = iter;
+                break;
+            }
+        }
+    }
 
-		matrix_out.open(argv[1], ios::trunc);
-		if (!matrix_out.is_open())
-		{
-			cout << "Unable to open file." << endl;
-			MPI_Abort(MPI_COMM_WORLD, -3);
-		}
+    // Gather results from all processes to the root process
+    err = MPI_Gather(sub_image, pixels_per_process, MPI_INT, image,
+               pixels_per_process, MPI_INT, 0, MPI_COMM_WORLD);
+    checkMPIError(err, "MPI_Gather failed.");
 
-		for (int row = 0; row < height; row++)
-		{
-			for (int col = 0; col < width; col++)
-			{
-				matrix_out << image[row * width + col];
-				if (col < width - 1)
-					matrix_out << ',';
-			}
-			if (row < height - 1)
-				matrix_out << endl;
-		}
-		matrix_out.close();
-		delete[] image;
-	}
+    if (myid == 0)
+    {
+        auto end_time = chrono::steady_clock::now();
+        double elapsed_seconds = chrono::duration<double>(end_time - start_time).count();
+        cout << "Time elapsed: " << fixed << setprecision(2)
+             << elapsed_seconds
+             << " seconds." << endl;
 
-	delete[] sub_image;
-	err = MPI_Finalize();
-	checkMPIError(err, "MPI_Finalize failed.");
-	return 0;
+                // Create log file path
+        string logFile = createLogFileName(argv[1], "_openMPI_");
+        ofstream log(logFile, std::ios::app);
+        if (log.is_open())
+        {
+            log << "\tProgram:\t" << fileName
+                << "\tIterations:\t" << iterations
+                << "\tResolution:\t" << resolution
+                << "\tWidth:\t" << WIDTH
+                << "\tHeight:\t" << HEIGHT
+                << "\tStep:\t" << STEP
+                << "\tNodes:\t" << nproc
+                << "\tProcesses per Node:\t" << (nproc > 0 ? (total_pixels / nproc) : 0)
+                << "\tTime:\t" << elapsed_seconds << " seconds"
+                << endl;
+
+            log.close();
+        }
+        else
+        {
+            std::cerr << "Unable to open log file." << endl;
+        }
+        // Write the result to a file
+        ofstream matrix_out;
+
+        matrix_out.open(argv[1], ios::trunc);
+        if (!matrix_out.is_open())
+        {
+            cerr << "Unable to open file." << endl;
+            MPI_Abort(MPI_COMM_WORLD, -3);
+        }
+
+        for (int row = 0; row < HEIGHT; row++)
+        {
+            for (int col = 0; col < WIDTH; col++)
+            {
+                matrix_out << image[row * WIDTH + col];
+                if (col < WIDTH - 1)
+                    matrix_out << ',';
+            }
+            if (row < HEIGHT - 1)
+                matrix_out << endl;
+        }
+        matrix_out.close();
+        delete[] image;
+    }
+
+    delete[] sub_image;
+    err = MPI_Finalize();
+    checkMPIError(err, "MPI_Finalize failed.");
+    return 0;
 }
