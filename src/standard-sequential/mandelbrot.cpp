@@ -1,9 +1,9 @@
+#include <LogUtils.h>
 #include <chrono>
 #include <complex>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
-#include <LogUtils.h>
 
 namespace MandelbrotSet
 {
@@ -32,24 +32,6 @@ namespace fs = std::filesystem;
 using namespace std;
 using namespace MandelbrotSet;
 
-string createLogFileName(const string &outputFile)
-{
-	const fs::path outputPath(outputFile);	
-	std::string filename = outputPath.stem().string();
-	size_t underscorePos = filename.find('_');
-	underscorePos = filename.find('_', underscorePos + 2);
-	if (underscorePos != string::npos)
-	{
-		filename = filename.substr(0, underscorePos);
-	}
-	const fs::path logFilePath =
-		// out/..
-		outputPath.parent_path().parent_path() / "logs" /
-		(filename + "_openmp" + ".log");
-	fs::create_directories(logFilePath.parent_path());
-	return logFilePath.string();
-}
-
 int main(int argc, char **argv)
 {
 	cout.sync_with_stdio(false);
@@ -57,32 +39,36 @@ int main(int argc, char **argv)
 	string fileName = filePath.filename().string();
 	if (argc < 3)
 	{
-		cout << "Usage: " << fileName << " <output_file> <iterations>" << endl;
+		cout << "Usage: " << fileName
+			 << " <output_file> <iterations>" << endl;
 		return -1;
 	}
 	if (argc < 2)
 	{
-		cout << "Please specify the output file as a parameter." << endl;
+		cout << "Please specify the output file as a parameter."
+			 << endl;
 		return -1;
 	}
 
 	int iterations = stoi(argv[2]);
 	if (iterations <= 0)
 	{
-		cout << "Please specify a positive number of iterations." << endl;
+		cout << "Please specify a positive number of iterations."
+			 << endl;
 		return -2;
 	}
 
 	int *const image = new int[HEIGHT * WIDTH];
-	cout << "Calculating Mandelbrot set with " << iterations << " iterations."
-		 << endl;
+	cout << "Calculating Mandelbrot set with " << iterations
+		 << " iterations." << endl;
 	const auto start = chrono::steady_clock::now();
 	for (int pos = 0; pos < HEIGHT * WIDTH; pos++)
 	{
 		image[pos] = 0;
 		const int row = pos / WIDTH;
 		const int col = pos % WIDTH;
-		const complex<double> c(col * STEP + MIN_X, row * STEP + MIN_Y);
+		const complex<double> c(col * STEP + MIN_X,
+								row * STEP + MIN_Y);
 
 		// z = z^2 + c
 		complex<double> z(0, 0);
@@ -98,12 +84,38 @@ int main(int argc, char **argv)
 		}
 	}
 	const auto end = chrono::steady_clock::now();
+	const string csvFile = logutils::createCsvFilename(argv[1]);
+	const string header =
+		"Date,Time,Program,Iterations,Resolution,Width,Height,Step,"
+		"Scheduling,Time (seconds)";
+	bool hasHeader = logutils::csvFileHasHeader(csvFile, header);
 
 	chrono::duration<double> duration = end - start;
 	cout << endl
-		 << "Time elapsed: " << duration.count() << " seconds." << endl;
+		 << "Time elapsed: " << duration.count() << " seconds."
+		 << endl;
 
-	const string logFile = logutils::createLogFileName(argv[1], "_seq_");
+	const string logFile =
+		logutils::createLogFileName(argv[1], "_seq_");
+	ofstream csv(csvFile, ios::app);
+	if (csv.is_open())
+	{
+		if (!hasHeader)
+		{
+			cout << "Adding header to csv file." << endl;
+			csv << header << endl;
+		}
+		csv << __DATE__ << "," << __TIME__ << "," << fileName << ","
+			<< iterations << "," << RESOLUTION_VALUE << "," << WIDTH
+			<< "," << HEIGHT << "," << STEP << "," << "" << ","
+			<< duration.count() << endl;
+		csv.close();
+		cout << "Log entry added successfully." << endl;
+	}
+	else
+	{
+		cerr << "Unable to open CSV file." << endl;
+	}
 	ofstream log(logFile, ios::app);
 	if (log.is_open())
 	{

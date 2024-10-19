@@ -19,7 +19,7 @@ GCC = g++
 NVC = nvc++
 MPICC = mpiicc
 CFLAGS = -Wall -I./lib
-CLANG_FLAGS =-Ofast -march=znver2 -mtune=znver2 -g
+CLANG_FLAGS =-Ofast -march=znver2 -mtune=znver2 #-g
 CLANG_FLAGS_EXT = -ffp-contract=fast -zopt -mllvm  -enable-strided-vectorization -mllvm -global-vectorize-slp=true
 GCC_FLAGS = -Ofast -march=znver2 -mtune=znver2
 # Unified uses the same memory for CPU and GPU
@@ -49,7 +49,7 @@ amd-seq-default: $(BIN_DIR)
 
 #! SEQ TUNED
 amd-seq: $(BIN_DIR)
-	$(CC) $(CFLAGS) $(CLANG_FLAGS) $(SRC_SEQ_FILE) $(LIB_LOGCPP) -o $(BIN_DIR)$(MB)_amd_seq.exe
+	$(CC) $(CFLAGS) $(CLANG_FLAGS) $(CLANG_FLAGS_EXT) $(SRC_SEQ_FILE) $(LIB_LOGCPP) -o $(BIN_DIR)$(MB)_amd_seq.exe
 
 gcc-seq: $(BIN_DIR)
 	$(GCC) $(CFLAGS) $(SRC_SEQ_FILE) $(LIB_LOGCPP) -o $(BIN_DIR)$(MB)_g++_seq.exe
