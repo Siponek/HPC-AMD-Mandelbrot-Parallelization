@@ -8,6 +8,24 @@
 namespace fs = std::filesystem;
 namespace logutils
 {
+std::string getCurrentTimestamp()
+{
+	auto now = std::chrono::system_clock::now();
+	std::time_t now_time_t =
+		std::chrono::system_clock::to_time_t(now);
+	std::tm now_tm;
+#ifdef _WIN32
+	localtime_s(&now_tm, &now_time_t);
+#else
+	localtime_r(&now_time_t, &now_tm);
+#endif
+
+	std::ostringstream timestamp_stream;
+	timestamp_stream << std::put_time(
+		&now_tm,
+		"%b %d %Y %H:%M:%S"); // e.g., "Oct 19 2024 21:35:37"
+	return timestamp_stream.str();
+}
 
 // Helper function to extract the base filename up to the second
 // underscore
@@ -27,12 +45,12 @@ std::string extractBaseFilename(const std::string &filename)
 
 // Generalized function to create a filename with a specific folder
 // and extension
-std::string createFilename(const std::string &outputFile,
+std::string createFilename(const std::string &output_file,
 						   const std::string &additionalName,
 						   const std::string &folder,
 						   const std::string &extension)
 {
-	fs::path outputPath(outputFile);
+	fs::path outputPath(output_file);
 	std::string baseFilename =
 		extractBaseFilename(outputPath.stem().string());
 
@@ -46,29 +64,26 @@ std::string createFilename(const std::string &outputFile,
 	return targetPath.string();
 }
 
-std::string createLogFileName(const std::string &outputFile,
-							  const std::string &additionalName)
+std::string create_log_file_name(const std::string &output_file,
+								 const std::string &additionalName)
 {
-	return createFilename(outputFile, additionalName, "logs",
+	return createFilename(output_file, additionalName, "logs",
 						  ".log");
 }
 
-std::string createCsvFilename(const std::string &outputFile,
+std::string createCsvFilename(const std::string &output_file,
 							  const std::string &additionalName)
 {
 	std::cout << "Creating CSV file name from output file: "
-			  << outputFile << std::endl;
+			  << output_file << std::endl;
 	std::string csvPath =
-		createFilename(outputFile, additionalName, "data", ".csv");
-	std::cout << "CSV file path: " << csvPath << std::endl;
+		createFilename(output_file, additionalName, "data", ".csv");
 	return csvPath;
 }
 
 bool csvFileHasHeader(const std::string &filePath,
 					  const std::string &header)
 {
-	std::cout << "Checking if CSV file has header: " << filePath
-			  << std::endl;
 	std::ifstream file(filePath);
 	if (!file.good() || !file.is_open())
 	{
@@ -84,17 +99,17 @@ bool csvFileHasHeader(const std::string &filePath,
 				  << std::endl;
 		return false;
 	}
-	bool hasHeader = (firstLine == header);
-	std::cout << "Header present: " << (hasHeader ? "Yes" : "No")
-			  << std::endl;
-	return hasHeader;
+	bool has_header = (firstLine == header);
+	std::cout << "Header present: "
+			  << (has_header ? "true" : "false") << std::endl;
+	return has_header;
 }
 
 } // namespace logutils
 
 namespace cmdParse
 {
-cmdParse::Command getCommand(const std::string &arg)
+cmdParse::Command get_command(const std::string &arg)
 {
 	if (arg == "--help")
 		return Command::HELP;
@@ -104,6 +119,8 @@ cmdParse::Command getCommand(const std::string &arg)
 		return Command::ITERATIONS;
 	if (arg == "--resolution")
 		return Command::RESOLUTION;
+	if (arg == "--threads")
+		return Command::THREADS_NUMBER;
 	// Assuming the first non-flag argument is the output file
 	return Command::INVALID;
 }
@@ -124,7 +141,7 @@ cmdParse::ParsedArgs parse_cmd_arguments(int argc, char *argv[])
 	for (int i = 1; i < argc; ++i)
 	{
 		std::string arg = argv[i];
-		Command cmd = getCommand(arg);
+		Command cmd = get_command(arg);
 
 		switch (cmd)
 		{
@@ -179,11 +196,29 @@ cmdParse::ParsedArgs parse_cmd_arguments(int argc, char *argv[])
 				exit(EXIT_FAILURE);
 			}
 			break;
-
-		case Command::INVALID:
-			if (args.outputFile.empty())
+		case Command::THREADS_NUMBER:
+			if (i + 1 < argc)
 			{
-				args.outputFile = arg;
+				args.threads_num = std::stoi(argv[++i]);
+				if (args.threads_num <= 0)
+				{
+					std::cerr << "--threads must be a positive "
+								 "integer."
+							  << std::endl;
+					exit(EXIT_FAILURE);
+				}
+			}
+			else
+			{
+				std::cerr << "--threads requires a value."
+						  << std::endl;
+				exit(EXIT_FAILURE);
+			}
+			break;
+		case Command::INVALID:
+			if (args.output_file.empty())
+			{
+				args.output_file = arg;
 			}
 			else
 			{
@@ -196,7 +231,7 @@ cmdParse::ParsedArgs parse_cmd_arguments(int argc, char *argv[])
 		}
 	}
 
-	if (args.outputFile.empty())
+	if (args.output_file.empty())
 	{
 		std::cerr
 			<< "Please specify the output file as a parameter."

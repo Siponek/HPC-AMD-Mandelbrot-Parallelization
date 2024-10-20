@@ -1,5 +1,3 @@
-#include <omp.h>
-
 #include <LogUtils.h>
 #include <chrono>
 #include <complex>
@@ -34,61 +32,11 @@ constexpr float MAX_Y = 1.0;
 constexpr float RATIO_X = (MAX_X - MIN_X);
 constexpr float RATIO_Y = (MAX_Y - MIN_Y);
 
-#ifndef RESOLUTION
-#define RESOLUTION 1000
-#endif
-constexpr int RESOLUTION_VALUE = (int)RESOLUTION;
-// Image size
-constexpr int WIDTH = static_cast<int>(RATIO_X * RESOLUTION_VALUE);
-constexpr int HEIGHT = static_cast<int>(RATIO_Y * RESOLUTION_VALUE);
-
-constexpr float STEP = RATIO_X / WIDTH;
 } // namespace MandelbrotSet
 namespace fs = std::filesystem;
 
-#define SCHEDULING_STRING "RUNTIME"
-#define SCHEDULING_TYPE runtime
-#ifdef DYNAMIC_SCHED
-#undef SCHEDULING_STRING
-#undef SCHEDULING_TYPE
-#define SCHEDULING_TYPE dynamic
-#define SCHEDULING_STRING "DYNAMIC"
-#elif defined(STATIC_SCHED)
-#undef SCHEDULING_STRING
-#undef SCHEDULING_TYPE
-#define SCHEDULING_TYPE static
-#define SCHEDULING_STRING "STATIC"
-#elif defined(GUIDED_SCHED)
-#undef SCHEDULING_STRING
-#undef SCHEDULING_TYPE
-#define SCHEDULING_TYPE guided
-#define SCHEDULING_STRING "GUIDED"
-#endif
-
 using namespace std;
 using namespace MandelbrotSet;
-
-__host__ int get_threads_used(int argc, char **argv)
-{
-	int _threads_used = omp_get_max_threads();
-	for (int i = 1; i < argc; ++i)
-	{
-		string arg = argv[i];
-		if (arg == "-threads" && i + 1 < argc)
-		{
-			_threads_used = stoi(argv[++i]);
-			if (_threads_used <= 0)
-			{
-				cerr << "Please specify a positive number of "
-						"threads."
-					 << endl;
-				exit(-4);
-			}
-			omp_set_num_threads(_threads_used);
-		}
-	}
-	return _threads_used;
-}
 
 __host__ void check_cuda_errors(cudaError_t err_sync,
 								cudaError_t err_async)
@@ -108,21 +56,20 @@ __host__ void check_cuda_errors(cudaError_t err_sync,
 }
 
 __host__ void log_execution_details(
-	const string &logFile, const string &file_name, int iterations,
-	int RESOLUTION_VALUE, int WIDTH, int HEIGHT, double STEP,
-	int _threads_used, chrono::duration<double> duration)
+	const string &log_file, const string &file_name, int iterations,
+	int resolution_value, int WIDTH, int HEIGHT, double STEP,
+	int cuda_threads_used, chrono::duration<double> duration)
 {
-	ofstream log(logFile, ios::app);
+	ofstream log(log_file, ios::app);
 	if (log.is_open())
 	{
 		log << "Date:\t" << __DATE__ << " " << __TIME__
 			<< "\tProgram:\t" << file_name << "\t\tIterations:\t"
-			<< iterations << "\tResolution:\t" << RESOLUTION_VALUE
+			<< iterations << "\tResolution:\t" << resolution_value
 			<< "\tWidth:\t" << WIDTH << "\tHeight:\t" << HEIGHT
-			<< "\tStep:\t" << STEP << "\tScheduling:\t"
-			<< SCHEDULING_STRING << "\tThreads:\t" << _threads_used
-			<< "\tTime:\t" << duration.count() << "\tseconds"
-			<< endl;
+			<< "\tStep:\t" << STEP << "\tCUDA threads:\t"
+			<< cuda_threads_used << "\tTime:\t" << duration.count()
+			<< "\tseconds" << endl;
 		log.close();
 	}
 	else
@@ -145,13 +92,6 @@ __device__ int dev_Mandelbrot_kernel(int collumn, int row,
 		z = cuCadd(cuCmul(z, z), c);
 		count++;
 	}
-	// const complex<double> c(minX + collumn * step, minY + row *
-	// step); complex<double> z(0, 0); while (abs(z) < 2.0 && count
-	// < iterations)
-	// {
-	// 	z = pow(z, 2) + c;
-	// 	count++;
-	// }
 
 	return (count < iterations) ? count : 0;
 }
@@ -173,29 +113,30 @@ __global__ void mandelbrotKernel(int *image, double step, int minX,
 
 int main(int argc, char **argv)
 {
-	// cout.sync_with_stdio(false);
 	fs::path file_path = argv[0];
 	string file_name = file_path.filename().string();
 	if (argc < 3)
 	{
 		cout << "Usage: " << file_name
-			 << " <output_file> <iterations>" << endl;
-		return -1;
-	}
-	if (argc < 2)
-	{
-		cout << "Please specify the output file as a parameter."
+			 << " <output_file> --iterations <iterations> "
+				"--resolution <resolution> --threads <threads>"
 			 << endl;
 		return -1;
 	}
-	const int iterations = stoi(argv[2]);
-	if (iterations <= 0)
-	{
-		cout << "Please specify a positive number of iterations."
-			 << endl;
-		return -2;
-	}
-	const int _threads_used = get_threads_used(argc, argv);
+
+	// Parse command line arguments
+	cmdParse::ParsedArgs args =
+		cmdParse::parse_cmd_arguments(argc, argv);
+	const int iterations = args.iterations;
+	const int resolution_value = args.resolution;
+	fs::path output_file_path(args.output_file);
+	const int cuda_threads_used = args.threads_num;
+
+	// Image size
+	const int WIDTH = static_cast<int>(RATIO_X * resolution_value);
+	const int HEIGHT = static_cast<int>(RATIO_Y * resolution_value);
+
+	const float STEP = RATIO_X / WIDTH;
 	const size_t image_size = HEIGHT * WIDTH;
 	unique_ptr<int[]> image(new int[image_size]);
 
@@ -219,13 +160,13 @@ int main(int argc, char **argv)
 
 	cudaMemcpy(device_image, image.get(), image_size * sizeof(int),
 			   cudaMemcpyHostToDevice);
-	dim3 threads_per_block(16, 16);
+	dim3 threads_per_block(cuda_threads_used, cuda_threads_used);
 	dim3 blocks_per_grid(
 		(WIDTH + threads_per_block.x - 1) / threads_per_block.x,
 		(HEIGHT + threads_per_block.y - 1) / threads_per_block.y);
 
 	cout << "Image size: " << WIDTH << "x" << HEIGHT << endl;
-	cout << "Calculating Mandelbrot set with " << _threads_used
+	cout << "Calculating Mandelbrot set with " << cuda_threads_used
 		 << " threads with " << iterations << " iterations." << endl
 		 << "blocksize: " << blocks_per_grid.x << " "
 		 << blocks_per_grid.y
@@ -256,19 +197,46 @@ int main(int argc, char **argv)
 		 << "Time elapsed: " << duration.count() << " seconds."
 		 << endl;
 
+	//? CSV
+	const string additinonalName = "_cuda_";
+	const string csvFile = logutils::createCsvFilename(
+		output_file_path, additinonalName);
+	const string header =
+		"DateTime,Program,Iterations,Resolution,"
+		"Width,Height,Step,CUDAThreads,Time (seconds)";
+	bool has_header = logutils::csvFileHasHeader(csvFile, header);
+	ofstream csv(csvFile, ios::app);
+	if (csv.is_open())
+	{
+		if (!has_header)
+		{
+			cout << "Adding header to csv file." << endl;
+			csv << header << endl;
+		}
+		csv << logutils::getCurrentTimestamp() << "," << file_name
+			<< "," << iterations << "," << resolution_value << ","
+			<< WIDTH << "," << HEIGHT << "," << STEP << ","
+			<< cuda_threads_used << "," << duration.count() << endl;
+		csv.close();
+		cout << "CSV entry added successfully." << endl;
+	}
+	else
+	{
+		cerr << "Unable to open CSV file." << endl;
+	}
+	//? Log
 	const string log_file =
-		logutils::createLogFileName(argv[1], "_openmp_");
+		logutils::create_log_file_name(output_file_path);
 	ofstream log(log_file, ios::app);
 	log_execution_details(log_file, file_name, iterations,
-						  RESOLUTION_VALUE, WIDTH, HEIGHT, STEP,
-						  _threads_used, duration);
+						  resolution_value, WIDTH, HEIGHT, STEP,
+						  cuda_threads_used, duration);
 	//
 	//? Logging the execution details
 	//
-	const fs::path outputFilePath(argv[1]);
 	try
 	{
-		fs::create_directories(outputFilePath.parent_path());
+		fs::create_directories(output_file_path.parent_path());
 	}
 	catch (const fs::filesystem_error &e)
 	{
@@ -276,8 +244,19 @@ int main(int argc, char **argv)
 		return -13;
 	}
 	// Write the result to a file
-	ofstream matrix_out(outputFilePath, ios::trunc);
-	cout << "Writing to file: " << argv[1] << endl;
+	string new_name = to_string(cuda_threads_used) + "_threads_" +
+					  to_string(iterations) + "_iterations_" +
+					  to_string(resolution_value) + "_resolution";
+	// Get the original filename stem and extension
+	string filename_stem = output_file_path.stem().string();
+	string extension = output_file_path.extension().string();
+	string new_filename =
+		filename_stem + "_" + new_name + extension;
+	// Update the output_file_path with the new filename
+	output_file_path =
+		output_file_path.parent_path() / new_filename;
+	ofstream matrix_out(output_file_path, ios::trunc);
+	cout << "Writing to file: " << output_file_path << endl;
 	if (!matrix_out.is_open())
 	{
 		cout << "Unable to open file." << endl;

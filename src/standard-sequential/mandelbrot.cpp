@@ -44,7 +44,7 @@ int main(int argc, char **argv)
 		cmdParse::parse_cmd_arguments(argc, argv);
 	const int iterations = args.iterations;
 	const int resolution_value = args.resolution;
-	const fs::path outputFilePath(args.outputFile);
+	const fs::path output_file_path(args.output_file);
 
 	// Image size
 	const int WIDTH =
@@ -92,30 +92,30 @@ int main(int argc, char **argv)
 	const auto end = chrono::steady_clock::now();
 	const string csvFile =
 		logutils::createCsvFilename(argv[1], "_seq_");
-	const string header = "Date,Time,Program,Iterations,"
+	const string header = "DateTime,Program,Iterations,"
 						  "Resolution,Width,Height,Step,"
 						  "Scheduling,Time (seconds)";
-	bool hasHeader = logutils::csvFileHasHeader(csvFile, header);
+	bool has_header = logutils::csvFileHasHeader(csvFile, header);
 
 	chrono::duration<double> duration = end - start;
 	cout << endl
 		 << "Time elapsed: " << duration.count() << " seconds."
 		 << endl;
 
-	const string logFile =
-		logutils::createLogFileName(argv[1], "_seq_");
+	const string log_file =
+		logutils::create_log_file_name(argv[1], "_seq_");
 	ofstream csv(csvFile, ios::app);
 	if (csv.is_open())
 	{
-		if (!hasHeader)
+		if (!has_header)
 		{
 			cout << "Adding header to csv file." << endl;
 			csv << header << endl;
 		}
-		csv << __DATE__ << "," << __TIME__ << "," << fileName << ","
-			<< iterations << "," << resolution_value << "," << WIDTH
-			<< "," << HEIGHT << "," << STEP << "," << "" << ","
-			<< duration.count() << endl;
+		csv << logutils::getCurrentTimestamp() << "," << fileName
+			<< "," << iterations << "," << resolution_value << ","
+			<< WIDTH << "," << HEIGHT << "," << STEP << "," << ""
+			<< "," << duration.count() << endl;
 		csv.close();
 		cout << "CSV entry added successfully." << endl;
 	}
@@ -123,7 +123,7 @@ int main(int argc, char **argv)
 	{
 		cerr << "Unable to open CSV file." << endl;
 	}
-	ofstream log(logFile, ios::app);
+	ofstream log(log_file, ios::app);
 	if (log.is_open())
 	{
 		log << "Date:\t" << __DATE__ << " " << __TIME__
@@ -143,7 +143,7 @@ int main(int argc, char **argv)
 
 	try
 	{
-		fs::create_directories(outputFilePath.parent_path());
+		fs::create_directories(output_file_path.parent_path());
 	}
 	catch (const fs::filesystem_error &e)
 	{
@@ -151,7 +151,7 @@ int main(int argc, char **argv)
 		return -13;
 	}
 	// Write the result to a file
-	ofstream matrix_out(outputFilePath, ios::trunc);
+	ofstream matrix_out(output_file_path, ios::trunc);
 	cout << "Writing to file: " << argv[1] << endl;
 	if (!matrix_out.is_open())
 	{

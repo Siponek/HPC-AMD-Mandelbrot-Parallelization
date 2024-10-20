@@ -33,7 +33,8 @@ RM = rm -rf ${1}
 
 ITERATIONS := 1000 2000 4000
 RESOLUTIONS := 1000 2000 4000 8000
-THREAD_COUNTS := 1 2 4 8 16
+THREAD_COUNTS := 2 4 8 16
+CUDA_THREADS := 2 4 8 16 32
 SCHEDULERS := DYNAMIC STATIC GUIDED RUNTIME
 
 $(BIN_DIR):
@@ -103,12 +104,22 @@ amd-openmp-ext: $(BIN_DIR)
 
 run-amd-openmp-ext:
 	echo "Running AMD OpenMP with extended flags..."
+	# echo "Running AMD OpenMP with extended flags with one thread..."
+	# 	for res in $(RESOLUTIONS); do \
+	# 		for iter in $(ITERATIONS); do \
+	# 			exe=$(BIN_DIR)$(MB)_amd_ext_GUIDED.exe; \
+	# 			out=$(OUT_DIR)$(MB)_amd_ext_openmp.out; \
+	# 			echo "Running $$exe with scheduler GUIDED, 1 thread, resolution $$res, iterations $$iter "; \
+	# 			$$exe $$out --iterations $$iter --resolution $$res --threads 1; \
+	# 		done \
+	# 	done \
+	echo "Running AMD OpenMP with extended flags with multiple threads..."
 	@for sched in $(SCHEDULERS); do \
 		for threads in $(THREAD_COUNTS); do \
 			for res in $(RESOLUTIONS); do \
 				for iter in $(ITERATIONS); do \
 					exe=$(BIN_DIR)$(MB)_amd_ext_$$sched.exe; \
-					out=$(OUT_DIR)$(MB)_amd_ext_openmp_$$sched_threads$$threads$$res.out; \
+					out=$(OUT_DIR)$(MB)_amd_ext_openmp.out; \
 					echo "Running $$exe with scheduler $$sched, $$threads threads, resolution $$res, iterations $$iter "; \
 					$$exe $$out --iterations $$iter --resolution $$res --threads "$$threads"; \
 				done \
@@ -134,7 +145,7 @@ run-amd-openmp:
 			for res in $(RESOLUTIONS); do \
 				for iter in $(ITERATIONS); do \
 					exe=$(BIN_DIR)$(MB)_amd_$$sched.exe; \
-					out=$(OUT_DIR)$(MB)_amd_openmp_$$sched_threads$$threads.out; \
+					out=$(OUT_DIR)$(MB)_amd_openmp_$($$sched)_threads$($$threads).out; \
 					echo "Running $$exe with $$threads threads and scheduler $$sched"; \
 					$$exe $$out --iterations $$iter --resolution $$res --threads "$$threads"; \
 				done \
@@ -158,10 +169,27 @@ run-g++-openmp:
 				exe=$(BIN_DIR)$(MB)_g++_$$sched.exe; \
 				out=$(OUT_DIR)$(MB)_g++_openmp_$$sched_threads$$threads.out; \
 				echo "Running $$exe with $$threads threads and scheduler $$sched"; \
-				$$exe $(OUT_DIR)$(MB)_g++_openmp_$$sched_threads$$threads.out $$iter -threads "$$threads"; \
+				$$exe $(OUT_DIR)$(MB)_g++_openmp_$$sched_threads$$threads.out $$iter --threads "$$threads"; \
 			done \
 		done \
 	done
+
+.PHONY: run-amd-openmp-full
+run-amd-openmp-full: amd-openmp run-amd-openmp
+
+.PHONY: run-custom-amd-ext
+run-custom-amd-ext: $(BIN_DIR)
+	@for threads in 4 8 16; do \
+		for res in 1000 2000 4000 8000; do \
+			for iter in 1000 2000 4000; do \
+				exe=$(BIN_DIR)$(MB)_amd_ext_RUNTIME.exe; \
+				out=$(OUT_DIR)$(MB)_amd_ext_openmp.out; \
+				echo "Running $$exe with scheduler RUNTIME, $$threads threads, resolution $$res, iterations $$iter "; \
+				$$exe $$out --iterations $$iter --resolution $$res --threads $$threads; \
+			done \
+		done \
+	done
+
 
 #! CUDA
 cuda: $(BIN_DIR)
@@ -169,9 +197,13 @@ cuda: $(BIN_DIR)
 # $(NVC) $(NVC_FLAGS) $(SRC_CUDA_DIR)mandelbrot.cu $(LIB_LOGCPP) -o $(BIN_DIR)$(MB)_cuda.exe
 
 run-cuda:
-	for iter in $(ITERATIONS); do \
-		echo "Running CUDA with $$iter iterations"; \
-		$(BIN_DIR)$(MB)_cuda.exe $(OUT_DIR)$(MB)_cuda.out $$iter; \
+	@for threads in $(CUDA_THREADS); do \
+		for res in $(RESOLUTIONS); do \
+			for iter in $(ITERATIONS); do \
+				echo "Running CUDA with $$threads threads $$res resolution $$iter iterations"; \
+				$(BIN_DIR)$(MB)_cuda.exe $(OUT_DIR)$(MB)_cuda.out --iterations $$iter --resolution $$res --threads $$threads; \
+			done \
+		done \
 	done
 
 .PHONY: compile-all-openmp
@@ -224,3 +256,4 @@ benchmark: compile-mpi
 		done \
 	done
 	@echo "MPI benchmark completed"
+

@@ -4,23 +4,24 @@
 
 namespace logutils
 {
+std::string getCurrentTimestamp();
 /**
- * @brief Creates a log file name based on the output file and an
- * additional name.
+ * @brief Creates a log file name based on the output file and
+ * an additional name.
  *
  * This function extracts the base filename up to the second
  * underscore, appends the additional name, and sets the file
  * extension to ".log". It also ensures that the necessary
  * directories exist.
  *
- * @param outputFile The original output file path.
- * @param additionalName An optional additional name to append to
- * the base filename.
+ * @param output_file The original output file path.
+ * @param additionalName An optional additional name to append
+ * to the base filename.
  * @return The generated log file path as a string.
  */
 std::string
-createLogFileName(const std::string &outputFile,
-				  const std::string &additionalName = "");
+create_log_file_name(const std::string &output_file,
+					 const std::string &additionalName = "");
 
 /**
  * @brief Creates a CSV file name based on the output file and an
@@ -31,13 +32,13 @@ createLogFileName(const std::string &outputFile,
  * extension to ".csv". It also ensures that the necessary
  * directories exist.
  *
- * @param outputFile The original output file path.
+ * @param output_file The original output file path.
  * @param additionalName An optional additional name to append to
  * the base filename.
  * @return The generated CSV file path as a string.
  */
 std::string
-createCsvFilename(const std::string &outputFile,
+createCsvFilename(const std::string &output_file,
 				  const std::string &additionalName = "");
 
 /**
@@ -64,17 +65,19 @@ enum class Command
 	ITERATIONS,
 	RESOLUTION,
 	OUTPUT_FILE,
+	THREADS_NUMBER,
 	INVALID
 };
 
 struct ParsedArgs
 {
-	std::string outputFile;
+	std::string output_file;
 	int iterations = 0;
 	int resolution = 0;
+	int threads_num = 0;
 };
 
-cmdParse::Command getCommand(const std::string &arg);
+cmdParse::Command get_command(const std::string &arg);
 
 cmdParse::ParsedArgs parse_cmd_arguments(int argc, char *argv[]);
 } // namespace cmdParse
