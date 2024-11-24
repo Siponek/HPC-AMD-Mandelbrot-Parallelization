@@ -1,0 +1,13 @@
+Date,Time,Program,Iterations,Resolution,Width,Height,Step,Scheduling,Time (seconds)
+Oct 19 2024,21:35:37,mandelbrot_amd_seq.exe,1000,1000,3000,2000,0.001,,5.49536
+Oct 19 2024,21:35:37,mandelbrot_amd_seq.exe,2000,1000,3000,2000,0.001,,10.8329
+Oct 19 2024,21:35:37,mandelbrot_amd_seq.exe,4000,1000,3000,2000,0.001,,21.188
+Oct 19 2024,21:35:37,mandelbrot_amd_seq.exe,1000,2000,6000,4000,0.0005,,21.6765
+Oct 19 2024,21:35:37,mandelbrot_amd_seq.exe,2000,2000,6000,4000,0.0005,,42.6682
+Oct 19 2024,21:35:37,mandelbrot_amd_seq.exe,4000,2000,6000,4000,0.0005,,85.0815
+Oct 19 2024,21:35:37,mandelbrot_amd_seq.exe,1000,4000,12000,8000,0.00025,,87.4296
+Oct 19 2024,21:35:37,mandelbrot_amd_seq.exe,2000,4000,12000,8000,0.00025,,172.437
+Oct 19 2024,21:35:37,mandelbrot_amd_seq.exe,4000,4000,12000,8000,0.00025,,340.391
+Oct 19 2024,21:35:37,mandelbrot_amd_seq.exe,1000,8000,24000,16000,0.000125,,348.094
+Oct 19 2024,21:35:37,mandelbrot_amd_seq.exe,2000,8000,24000,16000,0.000125,,699.598
+Oct 19 2024,21:35:37,mandelbrot_amd_seq.exe,4000,8000,24000,16000,0.000125,,1382.91
