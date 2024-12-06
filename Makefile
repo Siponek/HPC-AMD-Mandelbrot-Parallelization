@@ -16,7 +16,7 @@ LIB_LOGCPP = ./lib/LogUtils.cpp
 CC = clang++
 GCC = g++
 NVC = nvc++
-MPICC = mpiicc
+MPICC = mpiicpc
 CFLAGS = -Wall -I./lib
 CLANG_FLAGS =-Ofast -march=znver2 -mtune=znver2 #-g
 CLANG_FLAGS_EXT = -ffp-contract=fast -zopt -mllvm  -enable-strided-vectorization -mllvm -global-vectorize-slp=true
@@ -25,7 +25,7 @@ GCC_FLAGS = -Ofast -march=znver2 -mtune=znver2
 #  -mp is for OpenMP
 NVC_FLAGS = -tp=znver2 -fast -O4 -Xcompiler -Wall -I./lib --c++23 #-gpu=mem:unified -mp
 # NVC_FLAGS = -fast -O4 -Minfo -Xcompiler -Wall -I./lib #-gpu=mem:unified -mp
-MPI_FLAGS = -std=c++17 -Ofast -march=native -xHost -Wall -I./lib --c++17 -qopt-report=5 -qopt-report-phase=vec -qopt-report-file=optimization_report.txt
+MPI_FLAGS = -std=c++17 -Ofast -march=native -xHost -Wall -I./lib -I./lib --c++17 -qopt-report=5 -qopt-report-phase=vec -qopt-report-file=optimization_report.txt
 
 
 MKDIR = mkdir -p ${1}
@@ -243,14 +243,27 @@ run-mpi: compile-mpi
 
 .PHONY: benchmark
 benchmark: compile-mpi
-	@echo ""
 	@for nodes in 16 32 64 128 256 512 1024 2048 3072; do \
 		for resolution in 1000 2000 4000 8000; do \
 			for iter in $(ITERATIONS); do \
 				echo "Running MPI benchmark with $$nodes nodes, $$resolution resolution $$iter iterations"; \
-				mpiexec -hostfile ./machinefile.txt -perhost 1 -np $$nodes $(BIN_DIR)mandelbrot_mpi.exe $(OUT_DIR)/mandelbrot_mpi_$$nodes_$$resolution.out $$iter $$resolution; \
+				out=$(OUT_DIR)mandelbrot_mpi_nodes$$nodes_res$$resolution_iter$$iter.out; \
+				mpiexec -hostfile ./machinefile.txt -perhost 1 -np $$nodes $(BIN_DIR)mandelbrot_mpi.exe $$out $$iter $$resolution; \
 			done \
 		done \
 	done
 	@echo "MPI benchmark completed"
+
+.PHONY: custom-mpi
+custom-mpi:
+	@for nodes in 512 1024 2048 3072; do \
+		for resolution in 1000 2000 4000 8000; do \
+			for iter in $(ITERATIONS); do \
+				echo "Running MPI benchmark with $$nodes nodes, $$resolution resolution $$iter iterations"; \
+				out=$(OUT_DIR)mandelbrot_mpi_nodes$$nodes_res$$resolution_iter$$iter.out; \
+				mpiexec -hostfile ./machinefile.txt -perhost 1 -np $$nodes $(BIN_DIR)mandelbrot_mpi.exe $$out $$iter $$resolution; \
+			done \
+		done \
+	done
+
 
