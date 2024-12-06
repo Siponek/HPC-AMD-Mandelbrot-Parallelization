@@ -25,7 +25,7 @@ GCC_FLAGS = -Ofast -march=znver2 -mtune=znver2
 #  -mp is for OpenMP
 NVC_FLAGS = -tp=znver2 -fast -O4 -Xcompiler -Wall -I./lib --c++23 #-gpu=mem:unified -mp
 # NVC_FLAGS = -fast -O4 -Minfo -Xcompiler -Wall -I./lib #-gpu=mem:unified -mp
-MPI_FLAGS = -std=c++17 -Ofast -march=native -xHost -Wall -qopt-report=5 -qopt-report-phase=vec -qopt-report-file=optimization_report.txt
+MPI_FLAGS = -std=c++17 -Ofast -march=native -xHost -Wall -I./lib --c++17 -qopt-report=5 -qopt-report-phase=vec -qopt-report-file=optimization_report.txt
 
 
 MKDIR = mkdir -p ${1}
@@ -103,16 +103,6 @@ amd-openmp-ext: $(BIN_DIR)
 
 
 run-amd-openmp-ext:
-	echo "Running AMD OpenMP with extended flags..."
-	# echo "Running AMD OpenMP with extended flags with one thread..."
-	# 	for res in $(RESOLUTIONS); do \
-	# 		for iter in $(ITERATIONS); do \
-	# 			exe=$(BIN_DIR)$(MB)_amd_ext_GUIDED.exe; \
-	# 			out=$(OUT_DIR)$(MB)_amd_ext_openmp.out; \
-	# 			echo "Running $$exe with scheduler GUIDED, 1 thread, resolution $$res, iterations $$iter "; \
-	# 			$$exe $$out --iterations $$iter --resolution $$res --threads 1; \
-	# 		done \
-	# 	done \
 	echo "Running AMD OpenMP with extended flags with multiple threads..."
 	@for sched in $(SCHEDULERS); do \
 		for threads in $(THREAD_COUNTS); do \
@@ -126,6 +116,12 @@ run-amd-openmp-ext:
 			done \
 		done \
 	done
+
+run-amd-openmp-ext-temp:
+	echo "Running AMD OpenMP with extended flags with multiple threads..."
+	$(BIN_DIR)$(MB)_amd_ext_DYNAMIC.exe $(OUT_DIR)$(MB)_amd_ext_openmp.out --iterations 2000 --resolution 8000 --threads "1";
+	$(BIN_DIR)$(MB)_amd_ext_DYNAMIC.exe $(OUT_DIR)$(MB)_amd_ext_openmp.out --iterations 4000 --resolution 8000 --threads "1";
+	echo "Done"
 
 run-amd-openmp-ext-full: amd-openmp-ext run-amd-openmp-ext
 
@@ -152,6 +148,7 @@ run-amd-openmp:
 			done \
 		done \
 	done
+
 
 
 

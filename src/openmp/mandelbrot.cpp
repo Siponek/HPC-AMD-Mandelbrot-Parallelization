@@ -121,7 +121,7 @@ int main(int argc, char **argv)
 		logutils::createCsvFilename(argv[1], additinonalName);
 	const string header =
 		"DateTime,Program,Iterations,Resolution,Width,Height,Step,"
-		"Scheduling, Threads, Time (seconds)";
+		"Scheduling,Threads,Time (seconds)";
 	bool has_header = logutils::csvFileHasHeader(csvFile, header);
 	ofstream csv(csvFile, ios::app);
 	if (csv.is_open())

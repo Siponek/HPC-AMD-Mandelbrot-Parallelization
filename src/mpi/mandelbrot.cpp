@@ -1,3 +1,4 @@
+// C++
 #include <algorithm>
 #include <cctype>
 #include <chrono>
@@ -11,9 +12,6 @@
 #include <string>
 #include <sys/stat.h>
 
-// Define exception classes if they are not defined elsewhere
-// Remove these definitions if NoNumber and Overflow are already
-// defined in your project
 class NoNumber : public std::exception
 {
 	std::string message;
@@ -68,8 +66,7 @@ string getFileName(const string &path)
 	}
 	else
 	{
-		return path; // Return the entire string if no separator is
-					 // found
+		return path;
 	}
 }
 // Function to extract the base filename (without extension) and
@@ -109,19 +106,17 @@ string create_log_file_name(const std::string &output_file,
 	struct stat info;
 	if (stat(logDir.c_str(), &info) != 0)
 	{
-		// Directory does not exist, attempt to create it
+		// Directory does not exist, create it
 		if (mkdir(logDir.c_str(), 0755) != 0)
 		{
 			std::cerr << "Error: Unable to create log directory '"
 					  << logDir << "'." << endl;
-			// You can choose to exit or handle the error as needed
 		}
 	}
 	else if (!(info.st_mode & S_IFDIR))
 	{
 		std::cerr << "Error: '" << logDir
 				  << "' exists but is not a directory." << endl;
-		// Handle the error as needed
 	}
 
 	// Construct log file path
@@ -224,7 +219,6 @@ int main(int argc, char **argv)
 	checkMPIError(err, "MPI_Comm_size failed.");
 	err = MPI_Comm_rank(MPI_COMM_WORLD, &myid);
 	checkMPIError(err, "MPI_Comm_rank failed.");
-	// Check for correct number of arguments
 	if (argc < 4)
 	{
 		if (myid == 0)
@@ -396,8 +390,7 @@ int main(int argc, char **argv)
 			 << elapsed_seconds << " seconds." << endl;
 
 		// Create log file path
-		string log_file =
-			create_log_file_name(argv[1], "_openMPI_");
+		string log_file = create_log_file_name(argv[1], "_MPI_");
 		ofstream log(log_file, std::ios::app);
 		if (log.is_open())
 		{

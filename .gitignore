@@ -35,5 +35,3 @@
 .vscode
 bin
 out
-**/*.log
-**/*.csv
