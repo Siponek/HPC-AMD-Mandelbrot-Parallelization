@@ -9,6 +9,7 @@
 #include <iomanip>
 #include <iostream>
 #include <mpi.h>
+#include <omp.h>
 #include <string>
 #include <sys/stat.h>
 
@@ -602,8 +603,6 @@ int main(int argc, char **argv)
 		cout << "Resolution: " << resolution_value << endl;
 	}
 
-	// Define HEIGHT, WIDTH, STEP based on resolution_value
-	// Adjust these definitions as per your application's logic
 	const int HEIGHT = resolution_value * RATIO_Y;
 	const int WIDTH = resolution_value * RATIO_X;
 	const float STEP = RATIO_X / WIDTH;
@@ -621,10 +620,14 @@ int main(int argc, char **argv)
 	{
 		image = new int[total_pixels];
 	}
+	// Setting max threads per node
+	int threads_used = omp_get_max_threads();
+	omp_set_num_threads(threads_used);
 
 	auto start_time = chrono::steady_clock::now();
 
-	// Each process computes its portion of the image
+#pragma omp parallel for schedule(dynamic) default(none)           \
+	firstprivate(sub_image, ITERATIONS) shared(WIDTH, STEP)
 	for (int pos = start_index; pos < end_index; pos++)
 	{
 		const int row = pos / WIDTH;
@@ -665,11 +668,13 @@ int main(int argc, char **argv)
 		//? Create csv file
 		// Create CSV filename
 		std::string csv_filename = createCsvFilename(argv[1], "");
+		std::cout << "Created csv file: " << csv_filename
+				  << std::endl;
 
 		// Define header
 		std::string header =
 			"DateTime,Program,Iterations,Resolution,Width,Height,"
-			"Step,Cores,Time (seconds)";
+			"Step,NProcesses,Threads,Time (seconds)";
 
 		// Check if CSV has header
 
@@ -687,7 +692,8 @@ int main(int argc, char **argv)
 					   << "," << iterations << ","
 					   << resolution_value << "," << WIDTH << ","
 					   << HEIGHT << "," << STEP << "," << nproc
-					   << "," << elapsed_seconds << endl;
+					   << "," << "," << threads_used << ","
+					   << elapsed_seconds << endl;
 			csv_stream.close();
 			cout << "CSV entry added successfully." << endl;
 
@@ -695,13 +701,14 @@ int main(int argc, char **argv)
 		}
 		else
 		{
-			std::cerr << "Unable to open log file." << endl;
+			std::cerr << "Unable to open csv file." << endl;
 		}
 
 		//? Create log file path
 		string log_file =
 			create_log_file_name(argv[1], "_openMPI_");
 		ofstream log(log_file, std::ios::app);
+		std::cout << "LOG: log stream opened" << std::endl;
 		if (log.is_open())
 		{
 			log << "\tProgram:\t" << fileName << "\tIterations:\t"
@@ -724,12 +731,14 @@ int main(int argc, char **argv)
 		ofstream matrix_out;
 
 		matrix_out.open(argv[1], ios::trunc);
+		std::cout << "LOG: matrix out stream opened" << std::endl;
 		if (!matrix_out.is_open())
 		{
 			cerr << "Unable to open file." << endl;
 			MPI_Abort(MPI_COMM_WORLD, -3);
 		}
-
+		auto start_time_out = chrono::steady_clock::now();
+		std::cout << "Starting writing to out file..." << std::endl;
 		for (int row = 0; row < HEIGHT; row++)
 		{
 			for (int col = 0; col < WIDTH; col++)
@@ -741,10 +750,16 @@ int main(int argc, char **argv)
 			if (row < HEIGHT - 1)
 				matrix_out << endl;
 		}
+		auto end_time_out = chrono::steady_clock::now();
+		double elapsed_seconds_out =
+			chrono::duration<double>(end_time_out - start_time_out)
+				.count();
+		std::cout << "Finished writing to out file in "
+				  << elapsed_seconds << "seconds" << std::endl;
 		matrix_out.close();
 		delete[] image;
+		std::cout << "Exiting..." << std::endl;
 	}
-
 	delete[] sub_image;
 	err = MPI_Finalize();
 	checkMPIError(err, "MPI_Finalize failed.");

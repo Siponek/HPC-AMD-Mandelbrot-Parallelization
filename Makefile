@@ -25,7 +25,7 @@ GCC_FLAGS = -Ofast -march=znver2 -mtune=znver2
 #  -mp is for OpenMP
 NVC_FLAGS = -tp=znver2 -fast -O4 -Xcompiler -Wall -I./lib --c++23 #-gpu=mem:unified -mp
 # NVC_FLAGS = -fast -O4 -Minfo -Xcompiler -Wall -I./lib #-gpu=mem:unified -mp
-MPI_FLAGS = -std=c++17 -Ofast -march=native -xHost -Wall -I./lib -I./lib --c++17 -qopt-report=5 -qopt-report-phase=vec -qopt-report-file=optimization_report.txt
+MPI_FLAGS = -std=c++17 -fopenmp -Ofast -march=native -xHost -Wall -I./lib -qopt-report=5 -qopt-report-phase=vec -qopt-report-file=optimization_report.txt
 
 
 MKDIR = mkdir -p ${1}
@@ -244,7 +244,7 @@ run-mpi: compile-mpi
 .PHONY: benchmark
 benchmark: compile-mpi
 	@for nodes in 16 32 64 128 256 512 1024 2048 3072; do \
-		for resolution in 1000 2000 4000 8000; do \
+		for resolution in $(RESOLUTIONS); do \
 			for iter in $(ITERATIONS); do \
 				echo "Running MPI benchmark with $$nodes nodes, $$resolution resolution $$iter iterations"; \
 				out=$(OUT_DIR)mandelbrot_mpi_nodes$$nodes_res$$resolution_iter$$iter.out; \
@@ -253,6 +253,43 @@ benchmark: compile-mpi
 		done \
 	done
 	@echo "MPI benchmark completed"
+
+
+# MPI Configuration
+PROCS_PER_MACHINE := 4 8 16 32 64
+# PROCS_PER_MACHINE := 64
+MACHINES_LIST := 1 2 4 8
+RESOLUTION := 8000
+ITERATION := 4000
+
+benchmark-strong: compile-mpi
+	@for machines in $(MACHINES_LIST); do \
+		# Check if the requested number of machines is available \
+		total_available_machines=$$(wc -l < machinefile.txt | awk '{print $$1}'); \
+		if [ $$machines -gt $$total_available_machines ]; then \
+			echo "Requested $$machines machine(s), but only $$total_available_machines available. Skipping..."; \
+			continue; \
+		fi; \
+		\
+		for procs_per_machine in $(PROCS_PER_MACHINE); do \
+			# Calculate total number of MPI processes \
+			total_procs=$$(( procs_per_machine * machines )); \
+			\
+			# Extract the first N machines from machinefile.txt \
+			hostlist=$$(head -n $$machines machinefile.txt | paste -sd "," -); \
+			\
+			# Define the output filename \
+			out=$(OUT_DIR)mandelbrot_mpi_procs$$total_procs_machines$$machines_res$(RESOLUTION)_iter$(ITERATION).out; \
+			\
+			# Informative echo for tracking \
+			echo "Running MPI benchmark with $$machines machine(s), $$procs_per_machine process(es) per machine ($$total_procs total), resolution $(RESOLUTION), $(ITERATION) iterations"; \
+			\
+			# Execute the MPI program \
+			mpiexec --host $$hostlist -np $$total_procs $(BIN_DIR)mandelbrot_mpi.exe $$out $(ITERATION) $(RESOLUTION); \
+		done; \
+	done; \
+	@echo "MPI benchmark completed."
+
 
 .PHONY: custom-mpi
 custom-mpi:
