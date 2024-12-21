@@ -1,5 +1,4 @@
-DateTime,Program,Iterations,Resolution,Width,Height,Step,Nodes,Threads,Time (seconds)
-Nov 24 2024 23:09:21,./bin/mandelbrot_mpi.exe,4000,8000,24000,16000,0.000125,4,64,84.6429
+DateTime,Program,Iterations,Resolution,Width,Height,Step,Processes,Threads,Time (seconds)
 Nov 24 2024 23:14:16,./bin/mandelbrot_mpi.exe,4000,8000,24000,16000,0.000125,4,64,84.8702
 Nov 24 2024 23:18:25,./bin/mandelbrot_mpi.exe,4000,8000,24000,16000,0.000125,8,32,99.5405
 Nov 24 2024 23:22:28,./bin/mandelbrot_mpi.exe,4000,8000,24000,16000,0.000125,16,16,104.066
