@@ -1,0 +1,13 @@
+DateTime,Program,Iterations,Resolution,Width,Height,Step,Scheduling,Time (seconds)
+Dec 21 2024 16:54:12,mandelbrot_g++_seq.exe,1000,1000,3000,2000,0.001,,5.13158
+Dec 21 2024 16:54:23,mandelbrot_g++_seq.exe,2000,1000,3000,2000,0.001,,10.1418
+Dec 21 2024 16:54:47,mandelbrot_g++_seq.exe,4000,1000,3000,2000,0.001,,20.1602
+Dec 21 2024 16:55:11,mandelbrot_g++_seq.exe,1000,2000,6000,4000,0.0005,,20.808
+Dec 21 2024 16:55:58,mandelbrot_g++_seq.exe,2000,2000,6000,4000,0.0005,,41.1696
+Dec 21 2024 16:57:30,mandelbrot_g++_seq.exe,4000,2000,6000,4000,0.0005,,81.1685
+Dec 21 2024 16:59:01,mandelbrot_g++_seq.exe,1000,4000,12000,8000,0.00025,,83.0568
+Dec 21 2024 17:02:12,mandelbrot_g++_seq.exe,2000,4000,12000,8000,0.00025,,163.894
+Dec 21 2024 17:08:15,mandelbrot_g++_seq.exe,4000,4000,12000,8000,0.00025,,324.615
+Dec 21 2024 17:14:32,mandelbrot_g++_seq.exe,1000,8000,24000,16000,0.000125,,333.786
+Dec 21 2024 17:27:07,mandelbrot_g++_seq.exe,2000,8000,24000,16000,0.000125,,652.484
+Dec 21 2024 17:51:19,mandelbrot_g++_seq.exe,4000,8000,24000,16000,0.000125,,1269.81
