@@ -18,7 +18,7 @@ GCC = g++
 NVC = nvc++
 MPICC = mpiicpc
 CFLAGS = -Wall -I./lib
-CLANG_FLAGS =-Ofast -march=znver2 -mtune=znver2 #-g
+CLANG_FLAGS = -Ofast -march=znver2 -mtune=znver2 #-g
 CLANG_FLAGS_EXT = -ffp-contract=fast -zopt -mllvm  -enable-strided-vectorization -mllvm -global-vectorize-slp=true
 GCC_FLAGS = -Ofast -march=znver2 -mtune=znver2
 # Unified uses the same memory for CPU and GPU
@@ -58,7 +58,7 @@ amd-seq: $(BIN_DIR)
 	$(CC) $(CFLAGS) $(CLANG_FLAGS) $(CLANG_FLAGS_EXT) $(SRC_SEQ_FILE) $(LIB_LOGCPP) -o $(BIN_DIR)$(MB)_amd_seq.exe
 
 gcc-seq: $(BIN_DIR)
-	$(GCC) $(CFLAGS) $(SRC_SEQ_FILE) $(LIB_LOGCPP) -o $(BIN_DIR)$(MB)_g++_seq.exe
+	$(GCC) $(CFLAGS) $(GCC_FLAGS) $(SRC_SEQ_FILE) $(LIB_LOGCPP) -o $(BIN_DIR)$(MB)_g++_seq.exe
 
 run-amd-seq:
 	@for res in $(RESOLUTIONS); do \
@@ -83,15 +83,15 @@ run-g++-seq-full: gcc-seq run-g++-seq
 
 # ! OpenMP
 define compile_amd_openmp_ext
-	$(CC) $(CFLAGS) -fopenmp -D $(1)_SCHED $(CLANG_FLAGS) $(CLANG_FLAGS_EXT) $(SRC_OPENMP_DIR)mandelbrot.cpp $(LIB_LOGCPP) -o $(BIN_DIR)$(MB)_amd_ext_$(1).exe
+	$(CC) $(CFLAGS) -fopenmp -DSCHEDULE_$(1)=1 $(CLANG_FLAGS) $(CLANG_FLAGS_EXT) $(SRC_OPENMP_DIR)mandelbrot.cpp $(LIB_LOGCPP) -o $(BIN_DIR)$(MB)_amd_ext_$(1).exe
 endef
 
 define compile_amd_openmp
-	$(CC) $(CFLAGS) -fopenmp -D $(1)_SCHED $(CLANG_FLAGS) $(SRC_OPENMP_DIR)mandelbrot.cpp $(LIB_LOGCPP) -o $(BIN_DIR)$(MB)_amd_$(1).exe
+	$(CC) $(CFLAGS) -fopenmp -DSCHEDULE_$(1)=1 $(CLANG_FLAGS) $(SRC_OPENMP_DIR)mandelbrot.cpp $(LIB_LOGCPP) -o $(BIN_DIR)$(MB)_amd_$(1).exe
 endef
 
 define compile_g++_openmp
-	$(GCC) $(CFLAGS) -fopenmp -D $(1)_SCHED $(GCC_FLAGS) $(SRC_OPENMP_DIR)mandelbrot.cpp $(LIB_LOGCPP) -o $(BIN_DIR)$(MB)_g++_$(1).exe
+	$(GCC) $(CFLAGS) -fopenmp -DSCHEDULE_$(1)=1 $(GCC_FLAGS) $(SRC_OPENMP_DIR)mandelbrot.cpp $(LIB_LOGCPP) -o $(BIN_DIR)$(MB)_g++_$(1).exe
 endef
 
 amd-openmp-ext: $(BIN_DIR)
@@ -132,8 +132,6 @@ amd-openmp: $(BIN_DIR)
 	done
 	echo "AMD OpenMP compiled."
 
-
-
 run-amd-openmp:
 	echo "Running AMD OpenMP with extended flags..."
 	@for sched in $(SCHEDULERS); do \
@@ -149,24 +147,24 @@ run-amd-openmp:
 		done \
 	done
 
-
-
-
-g++-openmp: $(BIN_DIR)
+gpp-openmp: $(BIN_DIR)
 	@for sched in $(SCHEDULERS); do \
+		echo "Compiling G++ OpenMP for sched $$sched"; \
 		$(call compile_g++_openmp,$$sched); \
 	done
+	echo "G++ OpenMP compiled."
 
-
-run-g++-openmp:
+run-gpp-openmp:
 	echo "Running G++ OpenMP"
 	@for sched in $(SCHEDULERS); do \
 		for threads in $(THREAD_COUNTS); do \
-			for iter in $(ITERATIONS); do \
-				exe=$(BIN_DIR)$(MB)_g++_$$sched.exe; \
-				out=$(OUT_DIR)$(MB)_g++_openmp_$$sched_threads$$threads.out; \
-				echo "Running $$exe with $$threads threads and scheduler $$sched"; \
-				$$exe $(OUT_DIR)$(MB)_g++_openmp_$$sched_threads$$threads.out $$iter --threads "$$threads"; \
+			for res in $(RESOLUTIONS); do \
+				for iter in $(ITERATIONS); do \
+					exe=$(BIN_DIR)$(MB)_g++_$$sched.exe; \
+					out=$(OUT_DIR)$(MB)_g++_openmp_$$sched_threads$$threads.out; \
+					echo "Running $$exe with $$threads threads and scheduler $$sched"; \
+					$$exe $$out --iterations $$iter --resolution $$res --threads "$$threads"; \
+				done \
 			done \
 		done \
 	done
@@ -204,7 +202,7 @@ run-cuda:
 	done
 
 .PHONY: compile-all-openmp
-compile-all-openmp: amd-openmp-ext amd-openmp g++-openmp
+compile-all-openmp: amd-openmp-ext amd-openmp gpp-openmp
 
 
 .PHONY: compile-all
@@ -212,11 +210,11 @@ compile-all: amd-seq-default seq compile-all-openmp cuda
 
 
 .PHONY: run-all-openmp
-run-all-openmp: run-amd-openmp-ext run-amd-openmp run-g++-openmp
+run-all-openmp: run-amd-openmp-ext run-amd-openmp run-gpp-openmp
 
 
 .PHONY: run-all
-run-all: run-amd-seq run-g++-seq run-amd-openmp-ext run-amd-openmp run-g++-openmp run-cuda
+run-all: run-amd-seq run-g++-seq run-amd-openmp-ext run-amd-openmp run-gpp-openmp run-cuda
 
 
 clean:
