@@ -23,17 +23,17 @@ namespace fs = std::filesystem;
 
 #define SCHEDULING_STRING "RUNTIME"
 #define SCHEDULING_TYPE runtime
-#ifdef DYNAMIC_SCHED
+#ifdef SCHEDULE_DYNAMIC
 #undef SCHEDULING_STRING
 #undef SCHEDULING_TYPE
 #define SCHEDULING_TYPE dynamic
 #define SCHEDULING_STRING "DYNAMIC"
-#elif defined(STATIC_SCHED)
+#elif defined(SCHEDULE_STATIC)
 #undef SCHEDULING_STRING
 #undef SCHEDULING_TYPE
 #define SCHEDULING_TYPE static
 #define SCHEDULING_STRING "STATIC"
-#elif defined(GUIDED_SCHED)
+#elif defined(SCHEDULE_GUIDED)
 #undef SCHEDULING_STRING
 #undef SCHEDULING_TYPE
 #define SCHEDULING_TYPE guided
