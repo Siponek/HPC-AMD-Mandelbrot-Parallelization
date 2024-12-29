@@ -128,117 +128,147 @@ cmdParse::Command get_command(const std::string &arg)
 cmdParse::ParsedArgs parse_cmd_arguments(int argc, char *argv[])
 {
 	ParsedArgs args;
-	std::filesystem::path filePath = argv[0];
-	std::string fileName = filePath.filename().string();
-
-	if (argc < 2)
+	try
 	{
-		std::cerr << "Usage: " << fileName
-				  << " <output_file> [options]" << std::endl;
-		exit(EXIT_FAILURE);
-	}
+		std::filesystem::path filePath = argv[0];
+		std::string fileName = filePath.filename().string();
 
-	for (int i = 1; i < argc; ++i)
-	{
-		std::string arg = argv[i];
-		Command cmd = get_command(arg);
-
-		switch (cmd)
+		if (argc < 2)
 		{
-		case Command::HELP:
-			std::cout
-				<< "Usage: " << fileName
-				<< " <output_file> [--iterations <iterations>] "
-				   "[--resolution <resolution>] [--version]"
+			std::cerr << "Usage: " << fileName
+					  << " <output_file> [options]" << std::endl;
+			exit(EXIT_FAILURE);
+		}
+
+		for (int i = 1; i < argc; ++i)
+		{
+			std::string arg = argv[i];
+			Command cmd = get_command(arg);
+
+			switch (cmd)
+			{
+			case Command::HELP:
+				std::cout
+					<< "Usage: " << fileName
+					<< " <output_file> [--iterations <iterations>] "
+					   "[--resolution <resolution>] [--version]"
+					<< std::endl;
+				exit(EXIT_SUCCESS);
+
+			case Command::VERSION:
+				std::cout << "Version: 1.0.0" << std::endl;
+				exit(EXIT_SUCCESS);
+			case Command::OUTPUT_FILE:
+				if (args.output_file.empty())
+				{
+					args.output_file = arg;
+				}
+				else
+				{
+					std::cerr
+						<< "Invalid argument or multiple output "
+						   "files specified: "
+						<< arg << std::endl;
+					exit(EXIT_FAILURE);
+				}
+				break;
+			case Command::ITERATIONS:
+				if (i + 1 < argc)
+				{
+					args.iterations = std::stoi(argv[++i]);
+					if (args.iterations <= 0)
+					{
+						std::cerr
+							<< "--iterations must be a positive "
+							   "integer."
+							<< std::endl;
+						exit(EXIT_FAILURE);
+					}
+				}
+				else
+				{
+					std::cerr << "--iterations requires a value."
+							  << std::endl;
+					exit(EXIT_FAILURE);
+				}
+				break;
+
+			case Command::RESOLUTION:
+				if (i + 1 < argc)
+				{
+					args.resolution = std::stoi(argv[++i]);
+					if (args.resolution <= 0)
+					{
+						std::cerr
+							<< "--resolution must be a positive "
+							   "integer."
+							<< std::endl;
+						exit(EXIT_FAILURE);
+					}
+				}
+				else
+				{
+					std::cerr << "--resolution requires a value."
+							  << std::endl;
+					exit(EXIT_FAILURE);
+				}
+				break;
+			case Command::THREADS_NUMBER:
+				if (i + 1 < argc)
+				{
+					args.threads_num = std::stoi(argv[++i]);
+					if (args.threads_num <= 0)
+					{
+						std::cerr << "--threads must be a positive "
+									 "integer."
+								  << std::endl;
+						exit(EXIT_FAILURE);
+					}
+				}
+				else
+				{
+					std::cerr << "--threads requires a value."
+							  << std::endl;
+					exit(EXIT_FAILURE);
+				}
+				break;
+			case Command::INVALID:
+				if (args.output_file.empty())
+				{
+					args.output_file = arg;
+				}
+				else
+				{
+					std::cerr
+						<< "Invalid argument or multiple output "
+						   "files specified: "
+						<< arg << std::endl;
+					exit(EXIT_FAILURE);
+				}
+				break;
+			}
+		}
+
+		if (args.output_file.empty())
+		{
+			std::cerr
+				<< "Please specify the output file as a parameter."
 				<< std::endl;
-			exit(EXIT_SUCCESS);
-
-		case Command::VERSION:
-			std::cout << "Version: 1.0.0" << std::endl;
-			exit(EXIT_SUCCESS);
-
-		case Command::ITERATIONS:
-			if (i + 1 < argc)
-			{
-				args.iterations = std::stoi(argv[++i]);
-				if (args.iterations <= 0)
-				{
-					std::cerr << "--iterations must be a positive "
-								 "integer."
-							  << std::endl;
-					exit(EXIT_FAILURE);
-				}
-			}
-			else
-			{
-				std::cerr << "--iterations requires a value."
-						  << std::endl;
-				exit(EXIT_FAILURE);
-			}
-			break;
-
-		case Command::RESOLUTION:
-			if (i + 1 < argc)
-			{
-				args.resolution = std::stoi(argv[++i]);
-				if (args.resolution <= 0)
-				{
-					std::cerr << "--resolution must be a positive "
-								 "integer."
-							  << std::endl;
-					exit(EXIT_FAILURE);
-				}
-			}
-			else
-			{
-				std::cerr << "--resolution requires a value."
-						  << std::endl;
-				exit(EXIT_FAILURE);
-			}
-			break;
-		case Command::THREADS_NUMBER:
-			if (i + 1 < argc)
-			{
-				args.threads_num = std::stoi(argv[++i]);
-				if (args.threads_num <= 0)
-				{
-					std::cerr << "--threads must be a positive "
-								 "integer."
-							  << std::endl;
-					exit(EXIT_FAILURE);
-				}
-			}
-			else
-			{
-				std::cerr << "--threads requires a value."
-						  << std::endl;
-				exit(EXIT_FAILURE);
-			}
-			break;
-		case Command::INVALID:
-			if (args.output_file.empty())
-			{
-				args.output_file = arg;
-			}
-			else
-			{
-				std::cerr << "Invalid argument or multiple output "
-							 "files specified: "
-						  << arg << std::endl;
-				exit(EXIT_FAILURE);
-			}
-			break;
+			exit(EXIT_FAILURE);
 		}
 	}
-
-	if (args.output_file.empty())
+	catch (const std::exception &e)
 	{
-		std::cerr
-			<< "Please specify the output file as a parameter."
-			<< std::endl;
+		std::cerr << "Error parsing arguments: [";
+		for (int i = 0; i < argc; ++i)
+		{
+			std::cerr << argv[i];
+			if (i < argc - 1)
+				std::cerr << ", ";
+		}
+		std::cerr << "] " << e.what() << std::endl;
 		exit(EXIT_FAILURE);
 	}
-
 	return args;
 }
 } // namespace cmdParse
